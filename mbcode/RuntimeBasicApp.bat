@@ -1,0 +1,1 @@
+"C:\MapInfo\Pro RT x64\12.5\MapInfoRuntime.exe" "D:\Dropbox (Horsboll-Moller)\3. MB_Kode\mbRuntimeBasicApp\RuntimeBasicApp.MBX"

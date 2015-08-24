@@ -1,0 +1,13 @@
+!table
+!version 750
+!charset WindowsLatin1
+
+Definition Table
+  File "BaseMap Grey.xml"
+  Type "WMS"
+  CoordSys Earth Projection 8, 115, "m", 9, 0, 0.9996, 500000, 0
+begin_metadata
+"\IsReadOnly" = "FALSE"
+"\MapInfo" = ""
+"\MapInfo\TableID" = "5dc1fd5d-faf5-4db0-b774-a7c41f6a8937"
+end_metadata

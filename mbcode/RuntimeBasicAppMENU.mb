@@ -1,0 +1,2672 @@
+'*******************************************************************************
+'**   Created by Peter Horsbøll Møller, Pitney Bowes Software
+'** 	Program:
+'** 	Modul:
+'**
+'*******************************************************************************
+
+'-------------------------------------
+Include "MapBasic.def"
+Include "Enums.def"
+Include "Icons.def"
+Include "Menu.def"
+'**default constants...
+Include "Library\Defaults.def"
+Include "Library\MI_ICONS_X64.def"
+Include "Library\RibbonElements.def"
+
+Define xProgram 		"RuntimeBasicApp"
+Define xProgramMenu		"RuntimeBasicApp"
+Define xVersion 		"1.0"
+Define xYear			"2015"
+Define xAddToMenuBar	FALSE
+
+'Define FILE_INI			GetFolderPath$(FOLDER_MI_PREFERENCE) & xProgram & ".ini"
+Define FILE_INI			ApplicationDirectory$() & xProgram & ".ini"
+Define FILE_DBG			ApplicationDirectory$() & xProgram & ".dbg"
+'Define FILE_DLL			ApplicationDirectory$() & xProgram & ".dll"
+Define FILE_PAD			GetFolderPath$(FOLDER_MI_PREFERENCE) & xProgram & ".btp"
+
+Include "Library\CONFIGFILELib.def"
+Include "Library\DEBUGLib.def"
+Include "Library\ERRORLib.def"
+Include "Library\FILELib.def"
+Include "Library\LAYERLib.def"
+Include "Library\MAPPERLib.def"
+Include "Library\ProgramInfo.def"
+Include "Library\RIBBONLib.def"
+Include "Library\Types\T_LAYER_SETTINGS.def"
+Include "Library\Types\T_LABEL_SETTINGS.def"
+Include "Library\Types\T_LAYER_INFO.def"
+
+'-----------------------------------------------------------------------------------------
+Declare Sub Main
+Declare Sub MENUBuildRibbonInterface
+Declare Sub MENUBuildRibbonInterfaceMIPro
+
+Declare Sub MENUCreateContextMenus
+Declare Sub EndProgram
+Declare Sub EndHandler
+
+Type T_BASE_MAP
+	sName 		As String
+	sImageFile	As String
+	sTabFile		As String
+	sLyrSettings	As String
+	sLblSettings	As String
+End Type
+
+Declare Sub MENUReadConfigFile
+
+Declare Sub MENUOpenFavoriteMap(ByVal nItem As Integer)
+Declare Sub MENUOpenFavoriteMap1
+Declare Sub MENUSaveLayerSettingsLC
+
+Dim	mnSplitButtonBaseMapCtrlID, mnSplitButtonBaseMapFirstCtrlID As Integer,
+	mnImageSize As Integer,
+	mbShowSaveLayerSettingMenu As Logical,
+	marrFavoriteMaps() As T_BASE_MAP
+'**********************************************************************************************''
+'**   Created by Peter Horsbøll Møller, Pitney Bowes Software
+'
+'**********************************************************************************************''
+Sub Main
+
+OnError GoTo ErrorOccured
+
+	'***Initializing ApplicationInfo
+	Call PRGISetApplicationName(xProgram)
+	Call PRGISetApplicationVersion(xVersion)
+	Call PRGISetApplicationCopyrightYear(xYear)
+	Call PRGISetApplicationDevelopedBy("Peter Horsbøll Møller")
+
+	'***Enabling Debug if file exists
+	Call DEBUGEnableByFile(FILE_DBG)
+
+	Call MENUReadConfigFile
+
+	Create Menu xProgramMenu As
+		'""
+		'	HelpMsg ""
+		'	Calling ,
+		"(-",
+		"End program"
+			Calling EndProgram,
+		"About..."
+			Calling PRGIAboutbox
+
+'	Call MENUCreateContextMenus
+
+	If xAddToMenuBar Then
+		'Remove the Window menu and Help menu
+		Alter Menu Bar Remove ID 6, ID 7
+		'Add the custom menu, then the Window & Help menus
+		Alter Menu Bar Add xProgramMenu, ID 6, ID 7
+	Else
+		Alter Menu ID 4
+			Add "(-", xProgramMenu  As xProgramMenu
+	End If
+
+	If SystemInfo(SYS_INFO_MAPINFO_INTERFACE) = MIINTERFACE_RIBBON Then
+'		Call MENUBuildRibbonInterface
+		Call MENUBuildRibbonInterfaceMIPro
+	End If
+
+	Open Window LayerControl
+	Open Window TableList
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "Main")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUBuildRibbonInterfaceMIPro
+
+Dim	sRbnTabName, sRbnTabCaption, sRnGroupName, sRnGroupCaption, sSplitButtonName, sSplitButtonGroupName As String,
+	nCtrlIdx, nCtrl As Integer
+
+OnError GoTo ErrorOccured
+
+	Call DEBUGPrint("TabHome")
+	nCtrlIdx	= RBNAddTab("TabHome", "START", "A")
+	Call DEBUGPrint("   HomeFile")
+	nCtrlIdx	= RBNTabAddGroup("HomeFile", "Filer", "TabHome")
+
+	nCtrlIdx	= RBNGroupAddControl("HomeFileOpenGallerySplitButton", "Åbn", "O", 10, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("WorkspaceTable", "Arbejdsområder, tabeller", "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Åbn arbejdsområde", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWORKSPACE_16, MI_IMG_APP_OPENWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Tilføj arbejdsområde", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_INSERTWORKSPACE_16, MI_IMG_APP_INSERTWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_ADD_WORKSPACE)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Tabel", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_OPENTABLE_16, MI_IMG_MAP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Databasetabel", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Databasetabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENDBMS_16, MI_IMG_APP_OPENDBMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_DBMS_OPEN_ODBC)
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BaseMaps", "Grundkort", "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Fra luften", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fra luften", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPAERIAL_16, MI_IMG_MAP_BASEMAPAERIAL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_AERIAL)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Veje", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Veje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPROADS_16, MI_IMG_MAP_BASEMAPROADS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_ROADS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Hybrid", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hybrid", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPHYBRID_16, MI_IMG_MAP_BASEMAPHYBRID_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_HYBRID)
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("WebServices", "Webtjenester", "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Rasterkort (WMS)", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rasterkort (WMS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWMS_16, MI_IMG_APP_OPENWMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WMS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeFileOpenGallerySplitButton", "Vektorkort (WFS)", "O", 1, "TabHome", "HomeFile", "HomeFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vektorkort (WFS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWFS_16, MI_IMG_APP_OPENWFS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WFS)
+
+	nCtrlIdx	= RBNGroupAddControl("HomeSaveWorkspaceSplitButton", "Gem arbejdsområde", "K", 10, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SaveWorkspaceDownMenuGroup", "", "TabHome", "HomeFile", "HomeSaveWorkspaceSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeSaveWorkspaceSplitButton", "Save Workspace", "K", 1, "TabHome", "HomeFile", "HomeSaveWorkspaceSplitButton", "SaveWorkspaceDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Save Workspace", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_SAVEWORKSPACE_16, MI_IMG_APP_SAVEWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("HomeSaveWorkspaceSplitButton", "Gem arbejdsområde som", "K", 1, "TabHome", "HomeFile", "HomeSaveWorkspaceSplitButton", "SaveWorkspaceDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem arbejdsområde som", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_SAVEWORKSPACEAS_16, MI_IMG_APP_SAVEWORKSPACEAS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SaveTableButton", "Gem tabel", "ST", 1, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SAVETABLE_16, MI_IMG_TAB_SAVETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SaveCopyAsButton", "Gem kopi som", "SC", 1, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem kopi som", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SAVECOPYAS_16, MI_IMG_TAB_SAVECOPYAS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CloseConnectionButton", "Luk DBMS", "CDB", 1, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk DBMS", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_CLOSECONNECTION_16, MI_IMG_APP_CLOSECONNECTION_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CloseTableButton", "Luk tabel", "CL", 1, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_CLOSETABLE_16, MI_IMG_TAB_CLOSETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CloseAllButton", "Luk alle", "AC", 1, "TabHome", "HomeFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk alle", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_CLOSEALL_16, MI_IMG_APP_CLOSEALL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   HomeClipboard")
+	nCtrlIdx	= RBNTabAddGroup("HomeClipboard", "Udklipsholder", "TabHome")
+
+	nCtrlIdx	= RBNGroupAddControl("CopyButton", "Kopier", "CO", 1, "TabHome", "HomeClipboard")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kopier", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_COPY_16, MI_IMG_MAP_COPY_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PasteButton", "Sæt ind", "V", 1, "TabHome", "HomeClipboard")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sæt ind", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_PASTE_16, MI_IMG_MAP_PASTE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CutButton", "Klip", "X", 1, "TabHome", "HomeClipboard")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Klip", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CUT_16, MI_IMG_MAP_CUT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("UndoButton", "Fortryd", "UN", 1, "TabHome", "HomeClipboard")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fortryd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_UNDO_16, MI_IMG_MAP_UNDO_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   HomeWindow")
+	nCtrlIdx	= RBNTabAddGroup("HomeWindow", "Vindue", "TabHome")
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Kort", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Liste", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Liste", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Layout", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Layout", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Signaturforklaring", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Signaturforklaring", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "3D-kort", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "3D-kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Prismekort", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Prismekort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Distriktsoptimering", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Distriktsoptimering", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Lag", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Lag", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Tabeller", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabeller", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Vinduer", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vinduer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Stifinder", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Stifinder", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Flyt til", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Flyt til", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Forbindelser", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Forbindelser", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Informationer", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Informationer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Målebånd", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Målebånd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Statistik", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Statistik", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Temaer", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Temaer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("WindowGallery", "Meddelelse", "", 1, "TabHome", "HomeWindow")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Meddelelse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	Call DEBUGPrint("   HomeOutput")
+	nCtrlIdx	= RBNTabAddGroup("HomeOutput", "Output", "TabHome")
+
+	nCtrlIdx	= RBNGroupAddControl("PrintButton", "Udskriv", "PR", 1, "TabHome", "HomeOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Udskriv", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_PRINT_16, MI_IMG_APP_PRINT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PdfButton", "Opret", "PD", 1, "TabHome", "HomeOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_PRINTTOPDF_16, MI_IMG_APP_PRINTTOPDF_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ExportImgButton", "Gem", "EX", 1, "TabHome", "HomeOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_WIN_EXPORTIMAGE_16, MI_IMG_WIN_EXPORTIMAGE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PageSetupButton", "Sideopsætning", "PS", 1, "TabHome", "HomeOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sideopsætning", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPTPRINTERDEFTS_16, MI_IMG_APP_OPTPRINTERDEFTS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	'--------------------------------------------------------------
+	Call DEBUGPrint("TabTable")
+	nCtrlIdx	= RBNAddTab("TabTable", "TABEL", "T")
+	Call DEBUGPrint("   TableData")
+	nCtrlIdx	= RBNTabAddGroup("TableData", "Indhold", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("NewBrowserButton", "Ny liste", "N", 1, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ny liste", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_NEWBROWSER_16, MI_IMG_LAY_NEWBROWSER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("TableFileOpenGallerySplitButton", "Åbn", "O", 10, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("WorkspaceTable", "Arbejdsområder, tabeller", "TabTable", "TableData", "TableFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Åbn arbejdsområde", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWORKSPACE_16, MI_IMG_APP_OPENWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Tilføj arbejdsområde", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_INSERTWORKSPACE_16, MI_IMG_APP_INSERTWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_ADD_WORKSPACE)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Tabel", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_OPENTABLE_16, MI_IMG_MAP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Databasetabel", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Databasetabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENDBMS_16, MI_IMG_APP_OPENDBMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_DBMS_OPEN_ODBC)
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BaseMaps", "Grundkort", "TabTable", "TableData", "TableFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Fra luften", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fra luften", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPAERIAL_16, MI_IMG_MAP_BASEMAPAERIAL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_AERIAL)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Veje", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Veje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPROADS_16, MI_IMG_MAP_BASEMAPROADS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_ROADS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Hybrid", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hybrid", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPHYBRID_16, MI_IMG_MAP_BASEMAPHYBRID_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_HYBRID)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("WebServices", "Webtjenester", "TabTable", "TableData", "TableFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Rasterkort (WMS)", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rasterkort (WMS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWMS_16, MI_IMG_APP_OPENWMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WMS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableFileOpenGallerySplitButton", "Vektorkort (WFS)", "O", 1, "TabTable", "TableData", "TableFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vektorkort (WFS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWFS_16, MI_IMG_APP_OPENWFS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WFS)
+
+	nCtrlIdx	= RBNGroupAddControl("TableSaveSplitButton", "Gem", "S", 10, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("TableSaveDropDownMenuGroup", "", "TabTable", "TableData", "TableSaveSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableSaveSplitButton", "Gem tabel", "S", 1, "TabTable", "TableData", "TableSaveSplitButton", "TableSaveDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SAVETABLE_16, MI_IMG_TAB_SAVETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableSaveSplitButton", "Gem forespørgsel", "S", 1, "TabTable", "TableData", "TableSaveSplitButton", "TableSaveDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem forespørgsel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SAVEQUERY_16, MI_IMG_TAB_SAVEQUERY_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TableSaveSplitButton", "Gem kopi som", "S", 1, "TabTable", "TableData", "TableSaveSplitButton", "TableSaveDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem kopi som", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SAVECOPYAS_16, MI_IMG_TAB_SAVECOPYAS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("RevertTableButton", "Genskab", "RT", 1, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Genskab", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_REVERTTABLE_16, MI_IMG_TAB_REVERTTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("TableCloseButton", "Luk ", "CL", 1, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk ", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_CLOSETABLE_16, MI_IMG_TAB_CLOSETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("NewTableButton", "New Table", "AT", 1, "TabTable", "TableData")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "New Table", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_NEWTABLE_16, MI_IMG_TAB_NEWTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   TableSelection")
+	nCtrlIdx	= RBNTabAddGroup("TableSelection", "Markering", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("SelectButton", "Vælg", "BS", 1, "TabTable", "TableSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SELECT_16, MI_IMG_MAP_SELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SqlSelectButton", "SQL-valg", "Q", 1, "TabTable", "TableSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "SQL-valg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SQLSELECT_16, MI_IMG_MAP_SQLSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SelectionInvertSelectButton", "Inverter", "IS", 1, "TabTable", "TableSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Inverter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_INVERT_16, MI_IMG_MAP_INVERT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SelectionClearButton", "Ryd", "CS", 1, "TabTable", "TableSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CLEAR_16, MI_IMG_MAP_CLEAR_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapFindSplitButton", "Find", "F", 10, "TabTable", "TableSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("MapFindSplitButtonGroup", "", "TabTable", "TableSelection", "MapFindSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Find", "F", 1, "TabTable", "TableSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_FINDMAPSELECTION_16, MI_IMG_TAB_FINDMAPSELECTION_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Find adresse", "F", 1, "TabTable", "TableSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find adresse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDADDRESS_16, MI_IMG_MAP_FINDADDRESS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Marker", "F", 1, "TabTable", "TableSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Marker", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDANDMARK_16, MI_IMG_MAP_FINDANDMARK_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   TableAddEdit")
+	nCtrlIdx	= RBNTabAddGroup("TableAddEdit", "Rediger", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("UpdateColumnButton", "Opdater kolonne", "UC", 1, "TabTable", "TableAddEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdater kolonne", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_UPDATECOLUMN_16, MI_IMG_TAB_UPDATECOLUMN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("AppendRowButton", "Tilføj rækker", "AP", 1, "TabTable", "TableAddEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj rækker", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_APPENDROWS_16, MI_IMG_TAB_APPENDROWS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("AddNewRowButton", "Tilføj ny række", "AR", 1, "TabTable", "TableAddEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj ny række", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_ADDNEWROW_16, MI_IMG_TAB_ADDNEWROW_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("TableClearMapObjectsButton", "Ryd kortobjekter", "CM", 1, "TabTable", "TableAddEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd kortobjekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   BrowserTools")
+	nCtrlIdx	= RBNTabAddGroup("BrowserTools", "Listeværktøj", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("InfoToolButton", "Informationer", "IT", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Informationer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_INFOTOOL_16, MI_IMG_MAP_INFOTOOL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("HotLinkButton", "Link", "HL", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Link", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_HOTLINK_16, MI_IMG_TAB_HOTLINK_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("HotLinkOptionsButton", "Linkindstillinger", "HO", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Linkindstillinger", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_HOTLINKOPTIONS_16, MI_IMG_MAP_HOTLINKOPTIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PickFieldsButton", "Vælg felter", "PF", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg felter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_PICKFIELDS_16, MI_IMG_TAB_PICKFIELDS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("BrowserFontButton", "Skrifttype", "BF", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Skrifttype", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_BROWSERFONT_16, MI_IMG_TAB_BROWSERFONT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ShowGridLinesToggleButton", "Gitterlinjer", "RL", 1, "TabTable", "BrowserTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gitterlinjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SHOWGRIDLINES_16, MI_IMG_TAB_SHOWGRIDLINES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   BrowserSortFilter")
+	nCtrlIdx	= RBNTabAddGroup("BrowserSortFilter", "Sorter og filtrer", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("FilterDropDown", "Filtrer", "BI", 9, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Filtrer", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("FilterDropDownMenuGroup", "", "TabTable", "BrowserSortFilter", "FilterDropDown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("FilterDropDown", "Filtrer", "", 1, "TabTable", "BrowserSortFilter", "FilterDropDown", "FilterDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Filtrer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_FILTER_16, MI_IMG_TAB_FILTER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("FilterDropDown", "Ryd filtre", "", 1, "TabTable", "BrowserSortFilter", "FilterDropDown", "FilterDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd filtre", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_CLEARFILTER_16, MI_IMG_TAB_CLEARFILTER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("SortDropDown", "Sorter", "BR", 9, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sorter", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("SortDropDownMenuGroup", "", "TabTable", "BrowserSortFilter", "SortDropDown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SortDropDown", "Sorter flere kolonner...", "", 1, "TabTable", "BrowserSortFilter", "SortDropDown", "SortDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sorter flere kolonner...", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SORTMULTICOLUMN_16, MI_IMG_TAB_SORTMULTICOLUMN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SortDropDown", "Sorter stigende", "", 1, "TabTable", "BrowserSortFilter", "SortDropDown", "SortDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sorter stigende", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SORTASCENDING_16, MI_IMG_TAB_SORTASCENDING_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SortDropDown", "Sorter faldende", "", 1, "TabTable", "BrowserSortFilter", "SortDropDown", "SortDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sorter faldende", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SORTDESCENDING_16, MI_IMG_TAB_SORTDESCENDING_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SortDropDown", "Ryd sortering", "", 1, "TabTable", "BrowserSortFilter", "SortDropDown", "SortDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd sortering", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_CLEARSORTFILTER_16, MI_IMG_TAB_CLEARSORTFILTER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("ClearAllSortButton", "Slet alt", "CA", 1, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet alt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SORTCLEARSORT_16, MI_IMG_TAB_SORTCLEARSORT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ToggleSortButton", "Slå sortering til eller fra", "RO", 1, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slå sortering til eller fra", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_SORT_ONOFF_16, MI_IMG_TAB_SORT_ONOFF_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ReApplySortButton", "Gensorter", "RF", 1, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gensorter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_RESORT_16, MI_IMG_TAB_RESORT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("AddtoMapButton", "Føj til kort", "AM", 1, "TabTable", "BrowserSortFilter")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Føj til kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_ADDTOMAP_16, MI_IMG_TAB_ADDTOMAP_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   TableMaintenance")
+	nCtrlIdx	= RBNTabAddGroup("TableMaintenance", "Juster", "TabTable")
+
+	nCtrlIdx	= RBNGroupAddControl("TableMaintenanceButton", "Tabel", "MT", 9, "TabTable", "TableMaintenance")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabel", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("TableSplitButtonDropDownMenuGroup", "", "TabTable", "TableMaintenance", "TableMaintenanceButton")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("TableMaintenanceButton", "Rediger struktur", "", 1, "TabTable", "TableMaintenance", "TableMaintenanceButton", "TableSplitButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rediger struktur", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_MODIFYSTRUCTURE_16, MI_IMG_TAB_MODIFYSTRUCTURE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("TableMaintenanceButton", "Pak tabel", "", 1, "TabTable", "TableMaintenance", "TableMaintenanceButton", "TableSplitButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Pak tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_PACKTABLE_16, MI_IMG_TAB_PACKTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("TableMaintenanceButton", "Slet tabel", "", 1, "TabTable", "TableMaintenance", "TableMaintenanceButton", "TableSplitButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_DELETETABLE_16, MI_IMG_TAB_DELETETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("TableMaintenanceButton", "Omdøb tabel", "", 1, "TabTable", "TableMaintenance", "TableMaintenanceButton", "TableSplitButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Omdøb tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_RENAMETABLE_16, MI_IMG_TAB_RENAMETABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+'	nCtrlIdx	= RBNGroupAddControl("DatabaseMaintenanceButton", "Database", "MD", 9, "TabTable", "TableMaintenance")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Database", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNDropDButtonAddGroup("DatabaseSplitButtonDropDownMenuGroup", "", "TabTable", "TableMaintenance", "DatabaseMaintenanceButton")
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Gør DBMS-tabel klar til kortlægning", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gør DBMS-tabel klar til kortlægning", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_MAKEDBMSTABMPPBL_16, MI_IMG_APP_MAKEDBMSTABMPPBL_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Skift DBMS-tabellens symbol", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Skift DBMS-tabellens symbol", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_CHANGEDBMSTABSYM_16, MI_IMG_APP_CHANGEDBMSTABSYM_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Frigør DBMS-tabel", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Frigør DBMS-tabel", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_UNLINKDBMSTABLE_16, MI_IMG_APP_UNLINKDBMSTABLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Opdater DBMS-tabel", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdater DBMS-tabel", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_REFRESHDBMSTABLE_16, MI_IMG_APP_REFRESHDBMSTABLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "", "", 7, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, 16, 32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, )
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Opret Oracle-arbejdsområde", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret Oracle-arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_CREATEORACLEWOR_16, MI_IMG_ORA_CREATEORACLEWOR_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Slet Oracle-arbejdsområde", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet Oracle-arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_DELETEORACLEWOR_16, MI_IMG_ORA_DELETEORACLEWOR_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Flet Oracle-tabel", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Flet Oracle-tabel", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_MERGEORACLETABLE_16, MI_IMG_ORA_MERGEORACLETABLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Opdater Oracle-tabel", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdater Oracle-tabel", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_REFRESHORACLETAB_16, MI_IMG_ORA_REFRESHORACLETAB_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "", "", 7, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, 16, 32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, )
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Aktiver Oracle-versionering", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Aktiver Oracle-versionering", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_ENABLEORACLEVERS_16, MI_IMG_ORA_ENABLEORACLEVERS_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("DatabaseMaintenanceButton", "Deaktiver Oracle-versionering", "", 1, "TabTable", "TableMaintenance", "DatabaseMaintenanceButton", "DatabaseSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Deaktiver Oracle-versionering", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_ORA_DISABLEORACLEVERS_16, MI_IMG_ORA_DISABLEORACLEVERS_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+'	nCtrlIdx	= RBNGroupAddControl("LibraryMaintenanceButton", "Bibliotek", "ML", 9, "TabTable", "TableMaintenance")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Bibliotek", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNDropDButtonAddGroup("LibraryButtonDropDownMenuGroup", "", "TabTable", "TableMaintenance", "LibraryMaintenanceButton")
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("LibraryMaintenanceButton", "Føj til bibliotek", "", 1, "TabTable", "TableMaintenance", "LibraryMaintenanceButton", "LibraryButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Føj til bibliotek", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_ADDTOLIBRARY_16, MI_IMG_TAB_ADDTOLIBRARY_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("LibraryMaintenanceButton", "Vis/rediger metadata", "", 1, "TabTable", "TableMaintenance", "LibraryMaintenanceButton", "LibraryButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vis/rediger metadata", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_VIEWEDITMETADATA_16, MI_IMG_TAB_VIEWEDITMETADATA_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+'	nCtrlIdx	= RBNGroupAddControl("RasterTableMaintenanceButton", "Rasterbillede", "MR", 9, "TabTable", "TableMaintenance")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rasterbillede", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNDropDButtonAddGroup("RasterTableButtonDropDownMenuGroup", "", "TabTable", "TableMaintenance", "RasterTableMaintenanceButton")
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("RasterTableMaintenanceButton", "Juster raster", "", 1, "TabTable", "TableMaintenance", "RasterTableMaintenanceButton", "RasterTableButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Juster raster", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_RASTERIMAGESTYLE_16, MI_IMG_TAB_RASTERIMAGESTYLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("RasterTableMaintenanceButton", "Rediger billedorientering", "", 1, "TabTable", "TableMaintenance", "RasterTableMaintenanceButton", "RasterTableButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rediger billedorientering", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_RASTERREGISTR_16, MI_IMG_TAB_RASTERREGISTR_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("RasterTableMaintenanceButton", "", "", 7, "TabTable", "TableMaintenance", "RasterTableMaintenanceButton", "RasterTableButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("RasterTableMaintenanceButton", "Vælg orienteringspunkt", "", 1, "TabTable", "TableMaintenance", "RasterTableMaintenanceButton", "RasterTableButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg orienteringspunkt", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_RASTERCONTROLPNT_16, MI_IMG_TAB_RASTERCONTROLPNT_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("WebServicesMaintenanceButton", "Webtjenester", "MW", 9, "TabTable", "TableMaintenance")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Webtjenester", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("WebServicesButtonDropDownMenuGroup", "", "TabTable", "TableMaintenance", "WebServicesMaintenanceButton")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("WebServicesMaintenanceButton", "WFS-tabelegenskaber", "", 1, "TabTable", "TableMaintenance", "WebServicesMaintenanceButton", "WebServicesButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "WFS-tabelegenskaber", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("WebServicesMaintenanceButton", "Opdatering af en WFS-tabel", "", 1, "TabTable", "TableMaintenance", "WebServicesMaintenanceButton", "WebServicesButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdatering af en WFS-tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("WebServicesMaintenanceButton", "", "", 7, "TabTable", "TableMaintenance", "WebServicesMaintenanceButton", "WebServicesButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("WebServicesMaintenanceButton", "Egenskaber for WMS-tabel", "", 1, "TabTable", "TableMaintenance", "WebServicesMaintenanceButton", "WebServicesButtonDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Egenskaber for WMS-tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	'--------------------------------------------------------------
+	Call DEBUGPrint("TabMap")
+	nCtrlIdx	= RBNAddTab("TabMap", "KORT", "M")
+	Call DEBUGPrint("   MapFile")
+	nCtrlIdx	= RBNTabAddGroup("MapFile", "Indhold", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("NewMapButton", "Kort", "N", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_NEWMAP_16, MI_IMG_LAY_NEWMAP_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapFileOpenGallerySplitButton", "Åbn", "O", 10, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("WorkspaceTable", "Arbejdsområder, tabeller", "TabMap", "MapFile", "MapFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Åbn arbejdsområde", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWORKSPACE_16, MI_IMG_APP_OPENWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Tilføj arbejdsområde", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_INSERTWORKSPACE_16, MI_IMG_APP_INSERTWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_ADD_WORKSPACE)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Tabel", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_OPENTABLE_16, MI_IMG_MAP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Databasetabel", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Databasetabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENDBMS_16, MI_IMG_APP_OPENDBMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_DBMS_OPEN_ODBC)
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BaseMaps", "Grundkort", "TabMap", "MapFile", "MapFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Fra luften", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fra luften", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPAERIAL_16, MI_IMG_MAP_BASEMAPAERIAL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_AERIAL)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Veje", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Veje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPROADS_16, MI_IMG_MAP_BASEMAPROADS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_ROADS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Hybrid", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hybrid", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPHYBRID_16, MI_IMG_MAP_BASEMAPHYBRID_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_HYBRID)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("WebServices", "Webtjenester", "TabMap", "MapFile", "MapFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Rasterkort (WMS)", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rasterkort (WMS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWMS_16, MI_IMG_APP_OPENWMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WMS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFileOpenGallerySplitButton", "Vektorkort (WFS)", "O", 1, "TabMap", "MapFile", "MapFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vektorkort (WFS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWFS_16, MI_IMG_APP_OPENWFS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WFS)
+
+
+	nCtrlIdx	= RBNGroupAddControl("MapExplorerControlButton", "Stifinder", "E", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Stifinder", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_WIN_WOREXPLORERWIN_16, MI_IMG_WIN_WOREXPLORERWIN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapAddLayersButton", "Tilføj lag", "AL", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj lag", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ADDLAYER_16, MI_IMG_MAP_ADDLAYER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapAddThematicButton", "Tilføj tema", "AT", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj tema", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ADDTHEME_16, MI_IMG_MAP_ADDTHEME_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapCreateLegendDesignerButton", "Tilføj signaturforklaring", "LG", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj signaturforklaring", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_LAY_INSERTLEGEND_16, MI_IMG_LAY_INSERTLEGEND_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("showMapperInfo", "Mapper Info", "M", 1, "TabMap", "MapFile")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Mapper Info", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   MapSelection")
+	nCtrlIdx	= RBNTabAddGroup("MapSelection", "Markering", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("MapSelectionToolsSplitButton", "Vælg", "SE", 10, "TabMap", "MapSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SelectionDownMenuGroup", "", "TabMap", "MapSelection", "MapSelectionToolsSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Vælg", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_TOOLS_SELECTOR)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Radiusvalg", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Radiusvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_AREASELECT_16, MI_IMG_MAP_AREASELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Rektangelvalg", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rektangelvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_MARQUEESELECT_16, MI_IMG_LAY_MARQUEESELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Polygonvalg", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Polygonvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_POLYGONSELECT_16, MI_IMG_MAP_POLYGONSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Afgrænsningsvalg", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Afgrænsningsvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BOUNDARYSELECT_16, MI_IMG_MAP_BOUNDARYSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapSelectionToolsSplitButton", "Within Map", "SE", 1, "TabMap", "MapSelection", "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Within Map", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapSelectionSqlSelectButton", "SQL-valg", "Q", 1, "TabMap", "MapSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "SQL-valg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SQLSELECT_16, MI_IMG_MAP_SQLSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapSelectionInvertSelectButton", "Inverter", "IS", 1, "TabMap", "MapSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Inverter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_INVERT_16, MI_IMG_MAP_INVERT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapSelectionClearButton", "Ryd", "CS", 1, "TabMap", "MapSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CLEAR_16, MI_IMG_MAP_CLEAR_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapFindSplitButton", "Find", "F", 10, "TabMap", "MapSelection")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("MapFindSplitButtonGroup", "", "TabMap", "MapSelection", "MapFindSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Find", "F", 1, "TabMap", "MapSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_FINDMAPSELECTION_16, MI_IMG_TAB_FINDMAPSELECTION_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Find adresse", "F", 1, "TabMap", "MapSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find adresse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDADDRESS_16, MI_IMG_MAP_FINDADDRESS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("MapFindSplitButton", "Marker", "F", 1, "TabMap", "MapSelection", "MapFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Marker", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDANDMARK_16, MI_IMG_MAP_FINDANDMARK_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	Call DEBUGPrint("   MapNavigate")
+	nCtrlIdx	= RBNTabAddGroup("MapNavigate", "Naviger", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("PanButton", "Panorer", "PA", 1, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Panorer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_PAN_16, MI_IMG_MAP_PAN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ZoomInButton", "Zoom ind", "ZI", 1, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Zoom ind", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_ZOOMIN_16, MI_IMG_MAP_ZOOMIN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ZoomOutButton", "Zoom ud", "ZO", 1, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Zoom ud", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_ZOOMOUT_16, MI_IMG_MAP_ZOOMOUT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ZoomToDropDownButton", "Zoom ind på", "ZT", 9, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Zoom ind på", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("ZoomToDropDownMenuGroup", "", "TabMap", "MapNavigate", "ZoomToDropDownButton")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("ZoomToDropDownButton", "Hele det markerede lag", "", 1, "TabMap", "MapNavigate", "ZoomToDropDownButton", "ZoomToDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hele det markerede lag", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ZOOMENTIRESELLYR_16, MI_IMG_MAP_ZOOMENTIRESELLYR_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("ZoomToDropDownButton", "Udstrækningen af de markerede objekter", "", 1, "TabMap", "MapNavigate", "ZoomToDropDownButton", "ZoomToDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Udstrækningen af de markerede objekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ZOOMTOEXTENTSEL_16, MI_IMG_MAP_ZOOMTOEXTENTSEL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("ZoomToDropDownButton", "Hele laget", "", 1, "TabMap", "MapNavigate", "ZoomToDropDownButton", "ZoomToDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hele laget", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ZOOMTOENTIRELAYER_16, MI_IMG_MAP_ZOOMTOENTIRELAYER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("ZoomToDropDownButton", "Hele kortet", "", 1, "TabMap", "MapNavigate", "ZoomToDropDownButton", "ZoomToDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hele kortet", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ZOOMTOENTIREMAP_16, MI_IMG_MAP_ZOOMTOENTIREMAP_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("ZoomToDropDownButton", "Nærmeste tileserverniveau", "", 1, "TabMap", "MapNavigate", "ZoomToDropDownButton", "ZoomToDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Nærmeste tileserverniveau", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_ZOOMNRSTTLSRVRLVL_16, MI_IMG_MAP_ZOOMNRSTTLSRVRLVL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("MoveMapToButton", "Flyt til", "MT", 1, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Flyt til", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_MOVETO_16, MI_IMG_MAP_MOVETO_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PreviousViewButton", "Forrige visning", "PV", 1, "TabMap", "MapNavigate")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Forrige visning", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_PREV_16, MI_IMG_TAB_PREV_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   MapLabel")
+	nCtrlIdx	= RBNTabAddGroup("MapLabel", "Label", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("LabelToolButton", "Labelværktøj", "LT", 1, "TabMap", "MapLabel")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Labelværktøj", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_LABELTOOL_16, MI_IMG_MAP_LABELTOOL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SelectableLabelButton", "Kan vælges", "LS", 1, "TabMap", "MapLabel")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kan vælges", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_SELECTABLELABELS_16, MI_IMG_MAP_SELECTABLELABELS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ClearCustomLabelButton", "Ryd brugerdefineret", "CC", 1, "TabMap", "MapLabel")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd brugerdefineret", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CLEARCUSTOMLABELS_16, MI_IMG_MAP_CLEARCUSTOMLABELS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LabelPriorityButton", "Prioritet", "LP", 1, "TabMap", "MapLabel")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Prioritet", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_LABELPRIORITY_16, MI_IMG_MAP_LABELPRIORITY_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   MapAnalyze")
+	nCtrlIdx	= RBNTabAddGroup("MapAnalyze", "Analyser", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("DragMapButton", "Træk kort", "DM", 1, "TabMap", "MapAnalyze")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Træk kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_DRAGMAP_16, MI_IMG_MAP_DRAGMAP_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("HotLinkButton", "Link", "HL", 1, "TabMap", "MapAnalyze")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Link", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_TAB_HOTLINK_16, MI_IMG_TAB_HOTLINK_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("InfoToolButton", "Informationer", "IT", 1, "TabMap", "MapAnalyze")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Informationer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_INFOTOOL_16, MI_IMG_MAP_INFOTOOL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("StatsWindowButton", "Statistik", "ST", 1, "TabMap", "MapAnalyze")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Statistik", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_STATSWINDOW_16, MI_IMG_MAP_STATSWINDOW_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+'	nCtrlIdx	= RBNGroupAddControl("MapAnalyzeRedistricterDropDown", "Distriktsoptimering", "RE", 9, "TabMap", "MapAnalyze")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Distriktsoptimering", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNDropDButtonAddGroup("MapAnalyzeRedistricterDropDownMenuGroup", "", "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown")
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Nyt distriktsoptimeringsvindue", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Nyt distriktsoptimeringsvindue", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRICTER_16, MI_IMG_MAP_REDISTRICTER_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Vælg målobjekt", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg målobjekt", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRSETTARGET_16, MI_IMG_MAP_REDISTRSETTARGET_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Tildel distrikter", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tildel distrikter", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRASSIGN_16, MI_IMG_MAP_REDISTRASSIGN_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Tilføj distrikt", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj distrikt", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRICTERADD_16, MI_IMG_MAP_REDISTRICTERADD_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "", "", 7, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Slet distrikt", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet distrikt", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRDELETE_16, MI_IMG_MAP_REDISTRDELETE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("MapAnalyzeRedistricterDropDown", "Indstillinger", "", 1, "TabMap", "MapAnalyze", "MapAnalyzeRedistricterDropDown", "MapAnalyzeRedistricterDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Indstillinger", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_REDISTRICTEROPTS_16, MI_IMG_MAP_REDISTRICTEROPTS_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("MeasureButton", "Målebånd", "RU", 1, "TabMap", "MapAnalyze")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Målebånd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_LAY_RULER_16, MI_IMG_LAY_RULER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   MapOptions")
+	nCtrlIdx	= RBNTabAddGroup("MapOptions", "Indstillinger", "TabMap")
+
+	nCtrlIdx	= RBNGroupAddControl("MapOptionsButton", "Kortindstillinger", "MO", 1, "TabMap", "MapOptions")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kortindstillinger", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_MAPOPTIONS_16, MI_IMG_MAP_MAPOPTIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapHotlinkOptionsButton", "Linkindstillinger", "HO", 1, "TabMap", "MapOptions")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Linkindstillinger", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_HOTLINKOPTIONS_16, MI_IMG_MAP_HOTLINKOPTIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LockScaleButton", "Bevar skala", "LM", 1, "TabMap", "MapOptions")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Bevar skala", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_LOCKSCALE_16, MI_IMG_MAP_LOCKSCALE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CreateScaleBarButton", "Målestok", "SB", 1, "TabMap", "MapOptions")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Målestok", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_SCALEBAR_16, MI_IMG_MAP_SCALEBAR_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("MapRedrawButton", "Genoptegn", "RD", 1, "TabMap", "MapOptions")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Genoptegn", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_WIN_REDRAWWINDOWS_16, MI_IMG_WIN_REDRAWWINDOWS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	'--------------------------------------------------------------
+	Call DEBUGPrint("TabSpatial")
+	nCtrlIdx	= RBNAddTab("TabSpatial", "SPATIAL", "S")
+	Call DEBUGPrint("   SpatialClipboardBar")
+	nCtrlIdx	= RBNTabAddGroup("SpatialClipboardBar", "Udklipsholder", "TabSpatial")
+
+	nCtrlIdx	= RBNGroupAddControl("ClipboardCopyButton", "Kopier", "CO", 1, "TabSpatial", "SpatialClipboardBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kopier", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_COPY_16, MI_IMG_MAP_COPY_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ClipboardPasteButton", "Sæt ind", "", 1, "TabSpatial", "SpatialClipboardBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sæt ind", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_PASTE_16, MI_IMG_MAP_PASTE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ClipboardCutButton", "Klip", "X", 1, "TabSpatial", "SpatialClipboardBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Klip", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CUT_16, MI_IMG_MAP_CUT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ClipboardUndoButton", "Fortryd", "UN", 1, "TabSpatial", "SpatialClipboardBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fortryd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_UNDO_16, MI_IMG_MAP_UNDO_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   SpatialSelectionBar")
+	nCtrlIdx	= RBNTabAddGroup("SpatialSelectionBar", "Markering", "TabSpatial")
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialSelectionToolsSplitButton", "Vælg", "SE", 10, "TabSpatial", "SpatialSelectionBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SelectionDownMenuGroup", "", "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialSelectionToolsSplitButton", "Vælg", "SE", 1, "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SELECT_16, MI_IMG_MAP_SELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_TOOLS_SELECTOR)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialSelectionToolsSplitButton", "Radiusvalg", "SE", 1, "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Radiusvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_AREASELECT_16, MI_IMG_MAP_AREASELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialSelectionToolsSplitButton", "Rektangelvalg", "SE", 1, "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rektangelvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_MARQUEESELECT_16, MI_IMG_LAY_MARQUEESELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialSelectionToolsSplitButton", "Polygonvalg", "SE", 1, "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Polygonvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_POLYGONSELECT_16, MI_IMG_MAP_POLYGONSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialSelectionToolsSplitButton", "Afgrænsningsvalg", "SE", 1, "TabSpatial", "SpatialSelectionBar", "SpatialSelectionToolsSplitButton", "SelectionDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Afgrænsningsvalg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BOUNDARYSELECT_16, MI_IMG_MAP_BOUNDARYSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialSelectionSqlSelectButton", "SQL-valg", "Q", 1, "TabSpatial", "SpatialSelectionBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "SQL-valg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SQLSELECT_16, MI_IMG_MAP_SQLSELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialSelectionInvertSelectButton", "Inverter", "IS", 1, "TabSpatial", "SpatialSelectionBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Inverter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_INVERT_16, MI_IMG_MAP_INVERT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialSelectionClearButton", "Ryd", "CS", 1, "TabSpatial", "SpatialSelectionBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_MAP_CLEAR_16, MI_IMG_MAP_CLEAR_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialFindSplitButton", "Find", "F", 10, "TabSpatial", "SpatialSelectionBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("MapFindSplitButtonGroup", "", "TabSpatial", "SpatialSelectionBar", "SpatialFindSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialFindSplitButton", "Find", "F", 1, "TabSpatial", "SpatialSelectionBar", "SpatialFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_FINDMAPSELECTION_16, MI_IMG_TAB_FINDMAPSELECTION_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialFindSplitButton", "Find adresse", "F", 1, "TabSpatial", "SpatialSelectionBar", "SpatialFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Find adresse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDADDRESS_16, MI_IMG_MAP_FINDADDRESS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialFindSplitButton", "Marker", "F", 1, "TabSpatial", "SpatialSelectionBar", "SpatialFindSplitButton", "MapFindSplitButtonGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Marker", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_FINDANDMARK_16, MI_IMG_MAP_FINDANDMARK_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	Call DEBUGPrint("   SpatialEditBar")
+	nCtrlIdx	= RBNTabAddGroup("SpatialEditBar", "Rediger", "TabSpatial")
+
+	nCtrlIdx	= RBNGroupAddControl("SetTargetButton", "Vælg målobjekt", "TGS", 1, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg målobjekt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_REDISTRSETTARGET_16, MI_IMG_MAP_REDISTRSETTARGET_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ClearTargetButton", "Fjern målobjekt", "TGC", 1, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fjern målobjekt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CLEARTARGET_16, MI_IMG_SPA_CLEARTARGET_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("EraseDropDown", "Slet", "ER", 9, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("SpatialEraseDropDownMenuGroup", "", "TabSpatial", "SpatialEditBar", "EraseDropDown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("EraseDropDown", "Slet målobjekt", "", 1, "TabSpatial", "SpatialEditBar", "EraseDropDown", "SpatialEraseDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet målobjekt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_ERASE_16, MI_IMG_SPA_ERASE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("EraseDropDown", "Slet målobjekt udenfor", "", 1, "TabSpatial", "SpatialEditBar", "EraseDropDown", "SpatialEraseDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slet målobjekt udenfor", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_ERASEOUTSIDE_16, MI_IMG_SPA_ERASEOUTSIDE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("CombineDropDown", "Kombiner", "MB", 9, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kombiner", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("CombineDropDownMenuGroup", "", "TabSpatial", "SpatialEditBar", "CombineDropDown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("CombineDropDown", "Kombiner de markerede objekter", "", 1, "TabSpatial", "SpatialEditBar", "CombineDropDown", "CombineDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kombiner de markerede objekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_COMBINESELECTOBJ_16, MI_IMG_SPA_COMBINESELECTOBJ_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("CombineDropDown", "Kombiner ved hjælp af kolonne", "", 1, "TabSpatial", "SpatialEditBar", "CombineDropDown", "CombineDropDownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kombiner ved hjælp af kolonne", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_COMBINEUSINGCOL_16, MI_IMG_SPA_COMBINEUSINGCOL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("SplitDropdown", "Opdel", "SP", 9, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdel", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("SplitDropdownMenuGroup", "", "TabSpatial", "SpatialEditBar", "SplitDropdown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SplitDropdown", "Opdel målobjekt", "", 1, "TabSpatial", "SpatialEditBar", "SplitDropdown", "SplitDropdownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdel målobjekt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_SPLIT_16, MI_IMG_SPA_SPLIT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SplitDropdown", "Opdel målobjekt ved hjælp af polylinje", "", 1, "TabSpatial", "SpatialEditBar", "SplitDropdown", "SplitDropdownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdel målobjekt ved hjælp af polylinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_POLYLINESPLIT_16, MI_IMG_SPA_POLYLINESPLIT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("SplitDropdown", "Opdeling af polylinje i knudepunkt", "", 1, "TabSpatial", "SpatialEditBar", "SplitDropdown", "SplitDropdownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opdeling af polylinje i knudepunkt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_POLYLINESPLITNODE_16, MI_IMG_SPA_POLYLINESPLITNODE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("DisaggregateButton", "Opsplit", "DG", 1, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opsplit", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_DISAGGROBJECT_16, MI_IMG_SPA_DISAGGROBJECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("RibbonSeparator1", "", "", 5, "TabSpatial", "SpatialEditBar")
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialBufferSplitButton", "Buffer", "BU", 10, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Buffer", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SpatialBufferMenuGroup", "", "TabSpatial", "SpatialEditBar", "SpatialBufferSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialBufferSplitButton", "Buffer (objekter)", "BU", 1, "TabSpatial", "SpatialEditBar", "SpatialBufferSplitButton", "SpatialBufferMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Buffer (objekter)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_BUFFER_16, MI_IMG_SPA_BUFFER_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialBufferSplitButton", "Buffer (tabel)", "BU", 1, "TabSpatial", "SpatialEditBar", "SpatialBufferSplitButton", "SpatialBufferMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Buffer (tabel)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_BUFFERTABLE_16, MI_IMG_TAB_BUFFERTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialBufferSplitButton", "Konveks skal", "BU", 1, "TabSpatial", "SpatialEditBar", "SpatialBufferSplitButton", "SpatialBufferMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Konveks skal", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CONVEXHULL_16, MI_IMG_SPA_CONVEXHULL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("NodesSplitButton", "Knudepunkter", "RSN", 10, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Knudepunkter", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("NodesSplitButtonMenuGroup", "", "TabSpatial", "SpatialEditBar", "NodesSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("NodesSplitButton", "Snap til knudepunkter", "RSN", 1, "TabSpatial", "SpatialEditBar", "NodesSplitButton", "NodesSplitButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til knudepunkter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_SNAPTONODES_16, MI_IMG_SPA_SNAPTONODES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("NodesSplitButton", "Omform", "RSN", 1, "TabSpatial", "SpatialEditBar", "NodesSplitButton", "NodesSplitButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Omform", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_RESHAPENODES_16, MI_IMG_SPA_RESHAPENODES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("NodesSplitButton", "Tilføj knudepunkt", "RSN", 1, "TabSpatial", "SpatialEditBar", "NodesSplitButton", "NodesSplitButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj knudepunkt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_ADDNODES_16, MI_IMG_SPA_ADDNODES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("NodesSplitButton", "Opret knudepunkter på målobjektet", "RSN", 1, "TabSpatial", "SpatialEditBar", "NodesSplitButton", "NodesSplitButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret knudepunkter på målobjektet", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_OVERLAYNODES_16, MI_IMG_SPA_OVERLAYNODES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("FixCleanSplitButton", "Ret/rens", "CF", 10, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ret/rens", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("FixCleanButtonMenuGroup", "", "TabSpatial", "SpatialEditBar", "FixCleanSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("FixCleanSplitButton", "Kontroller regioner", "CF", 1, "TabSpatial", "SpatialEditBar", "FixCleanSplitButton", "FixCleanButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kontroller regioner", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CHECKREGIONS_16, MI_IMG_SPA_CHECKREGIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("FixCleanSplitButton", "Rens objekter", "CF", 1, "TabSpatial", "SpatialEditBar", "FixCleanSplitButton", "FixCleanButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rens objekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CLEANOBJECTS_16, MI_IMG_SPA_CLEANOBJECTS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("FixCleanSplitButton", "Snap/udtynding", "CF", 1, "TabSpatial", "SpatialEditBar", "FixCleanSplitButton", "FixCleanButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap/udtynding", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_SNAPTHIN_16, MI_IMG_SPA_SNAPTHIN_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("FixCleanSplitButton", "Udglatning af linjer", "CF", 1, "TabSpatial", "SpatialEditBar", "FixCleanSplitButton", "FixCleanButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Udglatning af linjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_SMOOTHLINES_16, MI_IMG_SPA_SMOOTHLINES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("FixCleanSplitButton", "Fjern udglatning af linjer", "CF", 1, "TabSpatial", "SpatialEditBar", "FixCleanSplitButton", "FixCleanButtonMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fjern udglatning af linjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_UNSMOOTHLINES_16, MI_IMG_SPA_UNSMOOTHLINES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("TransformSplitButton", "Transformer", "TR", 10, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Transformer", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("TransformDropdownMenuGroup", "", "TabSpatial", "SpatialEditBar", "TransformSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TransformSplitButton", "Forskyd objekt", "TR", 1, "TabSpatial", "SpatialEditBar", "TransformSplitButton", "TransformDropdownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Forskyd objekt", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAB_OFFSET_16, MI_IMG_LAB_OFFSET_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("TransformSplitButton", "Roter objekter", "TR", 1, "TabSpatial", "SpatialEditBar", "TransformSplitButton", "TransformDropdownMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Roter objekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_ROTATEOBJECT_16, MI_IMG_SPA_ROTATEOBJECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialConvertToPolylineButton", "Konverter til polylinjer", "PO", 1, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Konverter til polylinjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CVRTTOPOLYLINES_16, MI_IMG_SPA_CVRTTOPOLYLINES_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+'	nCtrlIdx	= RBNGroupAddControl("ClipRegionDropDown", "Udklipsområde", "RCL", 9, "TabSpatial", "SpatialEditBar")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Udklipsområde", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNDropDButtonAddGroup("ClipRegionDropDownMenuGroup", "", "TabSpatial", "SpatialEditBar", "ClipRegionDropDown")
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("ClipRegionDropDown", "Angiv udklipsområde", "", 1, "TabSpatial", "SpatialEditBar", "ClipRegionDropDown", "ClipRegionDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Angiv udklipsområde", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_CLIPREGIONSET_16, MI_IMG_SPA_CLIPREGIONSET_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNDropDButtonGroupAddControl("ClipRegionDropDown", "Slå udklipsområde til eller fra", "", 1, "TabSpatial", "SpatialEditBar", "ClipRegionDropDown", "ClipRegionDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Slå udklipsområde til eller fra", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_CLIPREGIONTOGGLE_16, MI_IMG_SPA_CLIPREGIONTOGGLE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+''
+'	nCtrlIdx	= RBNGroupAddControl("DigitizerSetupButton", "Digitizeropsætning ", "DS", 1, "TabSpatial", "SpatialEditBar")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Digitizeropsætning ", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_SPA_DIGITIZERSETUP_16, MI_IMG_SPA_DIGITIZERSETUP_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialClearMapObjectsButton", "Ryd kortobjekter", "CM", 1, "TabSpatial", "SpatialEditBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ryd kortobjekter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   SpatialCreateBar")
+	nCtrlIdx	= RBNTabAddGroup("SpatialCreateBar", "Opret", "TabSpatial")
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialCreateInsertSplitButton", "Indsæt", "IL", 10, "TabSpatial", "SpatialCreateBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Indsæt", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("InsertPointsandTextMenuGroup", "Punkter og tekst", "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Symbol", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertPointsandTextMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Symbol", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_SYMBOL_16, MI_IMG_LAY_SYMBOL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Tekst", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertPointsandTextMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tekst", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_INSERTTEXT_16, MI_IMG_SPA_INSERTTEXT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("InsertLinesMenuGroup", "Linjer", "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Linje", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertLinesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Linje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTLINE_16, MI_IMG_LAY_INSERTLINE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Polylinje", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertLinesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Polylinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTPOLYLINE_16, MI_IMG_LAY_INSERTPOLYLINE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Bue", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertLinesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Bue", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTARC_16, MI_IMG_LAY_INSERTARC_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("InsertRegionsMenuGroup", "Regioner", "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Polygon", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Polygon", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTPOLYGREGION_16, MI_IMG_LAY_INSERTPOLYGREGION_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Ellipse", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ellipse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTELLIPSE_16, MI_IMG_LAY_INSERTELLIPSE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Rektangel", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rektangel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSERTRECTANGLE_16, MI_IMG_LAY_INSERTRECTANGLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateInsertSplitButton", "Afrundet", "IL", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateInsertSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Afrundet", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_INSRTROUNDRECT_16, MI_IMG_LAY_INSRTROUNDRECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialStylesSplitButton", "Stil", "SS", 10, "TabSpatial", "SpatialCreateBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Stil", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SpatialStylesMenuGroup", "", "TabSpatial", "SpatialCreateBar", "SpatialStylesSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialStylesSplitButton", "Symbolstil", "SS", 1, "TabSpatial", "SpatialCreateBar", "SpatialStylesSplitButton", "SpatialStylesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Symbolstil", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_SYMBOLSTYLE_16, MI_IMG_LAY_SYMBOLSTYLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialStylesSplitButton", "Linjestil", "SS", 1, "TabSpatial", "SpatialCreateBar", "SpatialStylesSplitButton", "SpatialStylesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Linjestil", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_LINESTYLE_16, MI_IMG_LAY_LINESTYLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialStylesSplitButton", "Regionstil", "SS", 1, "TabSpatial", "SpatialCreateBar", "SpatialStylesSplitButton", "SpatialStylesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Regionstil", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_REGIONSTYLE_16, MI_IMG_LAY_REGIONSTYLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialStylesSplitButton", "Tekststil", "SS", 1, "TabSpatial", "SpatialCreateBar", "SpatialStylesSplitButton", "SpatialStylesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tekststil", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_TEXTSTYLE_16, MI_IMG_LAY_TEXTSTYLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SpatialCreateRegionsSplitButton", "Regioner", "RCV", 10, "TabSpatial", "SpatialCreateBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Regioner", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("SpatialCreateRegionsMenuGroup", "", "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Konverter til regioner", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Konverter til regioner", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_CONVERTTOREGIONS_16, MI_IMG_SPA_CONVERTTOREGIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Indram (polylinjer til regioner)", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Indram (polylinjer til regioner)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_ENCLOSE_16, MI_IMG_SPA_ENCLOSE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Kørselsområder (objekter)", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kørselsområder (objekter)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_DRIVEREGIONS_16, MI_IMG_SPA_DRIVEREGIONS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Kørselsområder (tabel)", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kørselsområder (tabel)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_DRIVEREGIONSTABLE_16, MI_IMG_SPA_DRIVEREGIONSTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Voronoi (objekter)", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Voronoi (objekter)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_VORONOI_16, MI_IMG_SPA_VORONOI_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("SpatialCreateRegionsSplitButton", "Voronoi (tabel)", "RCV", 1, "TabSpatial", "SpatialCreateBar", "SpatialCreateRegionsSplitButton", "SpatialCreateRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Voronoi (tabel)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_SPA_VORONOITABLE_16, MI_IMG_SPA_VORONOITABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("CreatePointsButton", "Opret punkter", "CP", 1, "TabSpatial", "SpatialCreateBar")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret punkter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_CREATEPOINTS_16, MI_IMG_TAB_CREATEPOINTS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+'	nCtrlIdx	= RBNGroupAddControl("GeoCodeSplitButton", "Geokodning", "G", 10, "TabSpatial", "SpatialCreateBar")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Geokodning", "Enabled ToolTip", "Disabled ToolTip")
+'	nCtrlIdx	= RBNSplitButtonAddGroup("GeoCodeSplitButtonDropDownMenuGroup", "", "TabSpatial", "SpatialCreateBar", "GeoCodeSplitButton")
+'	nCtrlIdx	= RBNSplitButtonGroupAddControl("GeoCodeSplitButton", "Geokodning", "G", 1, "TabSpatial", "SpatialCreateBar", "GeoCodeSplitButton", "GeoCodeSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Geokodning", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_GEOCODE_16, MI_IMG_TAB_GEOCODE_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+'
+'	nCtrlIdx	= RBNSplitButtonGroupAddControl("GeoCodeSplitButton", "Geokodning via server", "G", 1, "TabSpatial", "SpatialCreateBar", "GeoCodeSplitButton", "GeoCodeSplitButtonDropDownMenuGroup")
+'	Call RBNControlSetToolTipIdx(nCtrlIdx, "Geokodning via server", "Enabled ToolTip", "Disabled ToolTip")
+'	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_TAB_GEOCODESERVER_16, MI_IMG_TAB_GEOCODESERVER_32)
+'	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	'--------------------------------------------------------------
+	Call DEBUGPrint("TabLayout")
+	nCtrlIdx	= RBNAddTab("TabLayout", "LAYOUT", "L")
+	Call DEBUGPrint("   LayoutPage")
+	nCtrlIdx	= RBNTabAddGroup("LayoutPage", "Side", "TabLayout")
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutNewPageButton", "Nyt layout", "WL", 1, "TabLayout", "LayoutPage")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Nyt layout", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_LAY_NEWLAYOUTPAGE_16, MI_IMG_LAY_NEWLAYOUTPAGE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutFileOpenGallerySplitButton", "Åbn", "O", 10, "TabLayout", "LayoutPage")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("WorkspaceTable", "Arbejdsområder, tabeller", "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Åbn arbejdsområde", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWORKSPACE_16, MI_IMG_APP_OPENWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Tilføj arbejdsområde", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj arbejdsområde", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_INSERTWORKSPACE_16, MI_IMG_APP_INSERTWORKSPACE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_ADD_WORKSPACE)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Tabel", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_OPENTABLE_16, MI_IMG_MAP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Databasetabel", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WorkspaceTable")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Databasetabel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENDBMS_16, MI_IMG_APP_OPENDBMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_DBMS_OPEN_ODBC)
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BaseMaps", "Grundkort", "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Fra luften", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fra luften", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPAERIAL_16, MI_IMG_MAP_BASEMAPAERIAL_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_AERIAL)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Veje", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Veje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPROADS_16, MI_IMG_MAP_BASEMAPROADS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_ROADS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Hybrid", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "BaseMaps")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Hybrid", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_BASEMAPHYBRID_16, MI_IMG_MAP_BASEMAPHYBRID_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_BING_HYBRID)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("WebServices", "Webtjenester", "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Rasterkort (WMS)", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rasterkort (WMS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWMS_16, MI_IMG_APP_OPENWMS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WMS)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("LayoutFileOpenGallerySplitButton", "Vektorkort (WFS)", "O", 1, "TabLayout", "LayoutPage", "LayoutFileOpenGallerySplitButton", "WebServices")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vektorkort (WFS)", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENWFS_16, MI_IMG_APP_OPENWFS_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN_WFS)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutPageSetupButton", "Sideopsætning", "PS", 1, "TabLayout", "LayoutPage")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sideopsætning", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   LayoutEdit")
+	nCtrlIdx	= RBNTabAddGroup("LayoutEdit", "Rediger", "TabLayout")
+
+	nCtrlIdx	= RBNGroupAddControl("AddMapSplitButton", "Kort", "MA", 10, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Kort", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("NewMapMenuGroup", "", "TabLayout", "LayoutEdit", "AddMapSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("AddMapSplitButton", "Nyt kort", "MA", 1, "TabLayout", "LayoutEdit", "AddMapSplitButton", "NewMapMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Nyt kort", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("MapsMenuGroup", "Kort", "TabLayout", "LayoutEdit", "AddMapSplitButton")
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("MapFramesMenuGroup", "Kortrammer", "TabLayout", "LayoutEdit", "AddMapSplitButton")
+
+
+	nCtrlIdx	= RBNGroupAddControl("AddBrowserSplitButton", "Liste", "BR", 10, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Liste", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("NewBrowserMenuGroup", "", "TabLayout", "LayoutEdit", "AddBrowserSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("AddBrowserSplitButton", "Ny liste", "BR", 1, "TabLayout", "LayoutEdit", "AddBrowserSplitButton", "NewBrowserMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ny liste", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BrowserMenuGroup", "Lister", "TabLayout", "LayoutEdit", "AddBrowserSplitButton")
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("BrowserFramesMenuGroup", "Listerammer", "TabLayout", "LayoutEdit", "AddBrowserSplitButton")
+
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutDesigneInsertTextButton", "Tekst", "TE", 1, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tekst", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutDesigneInsertImageButton", "Billede", "PI", 1, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Billede", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutAddMapLegendButton", "Signaturforklaring", "LG", 1, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Signaturforklaring", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("InsertShapeSplitButton", "Form", "SH", 10, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Form", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNSplitButtonAddGroup("InsertLinesMenuGroup", "Linjer", "TabLayout", "LayoutEdit", "InsertShapeSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("InsertShapeSplitButton", "Linje", "SH", 1, "TabLayout", "LayoutEdit", "InsertShapeSplitButton", "InsertLinesMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Linje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNSplitButtonAddGroup("InsertRegionsMenuGroup", "Regioner", "TabLayout", "LayoutEdit", "InsertShapeSplitButton")
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("InsertShapeSplitButton", "Ellipse", "SH", 1, "TabLayout", "LayoutEdit", "InsertShapeSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Ellipse", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("InsertShapeSplitButton", "Rektangel", "SH", 1, "TabLayout", "LayoutEdit", "InsertShapeSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Rektangel", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNSplitButtonGroupAddControl("InsertShapeSplitButton", "Afrundet", "SH", 1, "TabLayout", "LayoutEdit", "InsertShapeSplitButton", "InsertRegionsMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Afrundet", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+
+	nCtrlIdx	= RBNGroupAddControl("RemoveSelectedLayoutItemsButton", "Fjern", "DF", 1, "TabLayout", "LayoutEdit")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fjern", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   LayoutArrange")
+	nCtrlIdx	= RBNTabAddGroup("LayoutArrange", "Arranger", "TabLayout")
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutReorderDropDownButton", "Flyt", "R", 9, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Flyt", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("ReorderMenuGroup", "", "TabLayout", "LayoutArrange", "LayoutReorderDropDownButton")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("LayoutReorderDropDownButton", "Sæt forrest", "", 1, "TabLayout", "LayoutArrange", "LayoutReorderDropDownButton", "ReorderMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sæt forrest", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("LayoutReorderDropDownButton", "Sæt bagerst", "", 1, "TabLayout", "LayoutArrange", "LayoutReorderDropDownButton", "ReorderMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Sæt bagerst", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+
+	nCtrlIdx	= RBNGroupAddControl("AlignDropDown", "Juster", "A", 9, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Juster", "Enabled ToolTip", "Disabled ToolTip")
+	nCtrlIdx	= RBNDropDButtonAddGroup("GuidelineMenuGroup", "", "TabLayout", "LayoutArrange", "AlignDropDown")
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("AlignDropDown", "Tilføj lodret hjælpelinje", "", 1, "TabLayout", "LayoutArrange", "AlignDropDown", "GuidelineMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj lodret hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("AlignDropDown", "Tilføj vandret hjælpelinje", "", 1, "TabLayout", "LayoutArrange", "AlignDropDown", "GuidelineMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj vandret hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("AlignDropDown", "Aktiver hjælpelinjer", "", 1, "TabLayout", "LayoutArrange", "AlignDropDown", "GuidelineMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Aktiver hjælpelinjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNDropDButtonGroupAddControl("AlignDropDown", "Fjern alle hjælpelinjer", "", 1, "TabLayout", "LayoutArrange", "AlignDropDown", "GuidelineMenuGroup")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Fjern alle hjælpelinjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SnapToLeftButton", "Snap til venstre hjælpelinje", "SL", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til venstre hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 1, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SnapToBottomButton", "Snap til nederste hjælpelinje", "SB", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til nederste hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 1, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SnapToTopButton", "Snap til øverste hjælpelinje", "ST", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til øverste hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 1, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SnapToRightButton", "Snap til højre hjælpelinje", "SR", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til højre hjælpelinje", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 1, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutGridLinesButton", "Gitterlinjer", "GL", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gitterlinjer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("SnapToGridButton", "Snap til gitter", "SG", 1, "TabLayout", "LayoutArrange")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Snap til gitter", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   LayoutTools")
+	nCtrlIdx	= RBNTabAddGroup("LayoutTools", "Værktøj", "TabLayout")
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutSelectButton", "Vælg", "TS", 1, "TabLayout", "LayoutTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_MAP_SELECT_16, MI_IMG_MAP_SELECT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutZoomInButton", "Zoom ind", "ZI", 1, "TabLayout", "LayoutTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Zoom ind", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutZoomOutButton", "Zoom ud", "ZO", 1, "TabLayout", "LayoutTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Zoom ud", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("LayoutPanButton", "Panorer", "PA", 1, "TabLayout", "LayoutTools")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Panorer", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 2, MI_IMG_APP_OPENTABLE_16, MI_IMG_APP_OPENTABLE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Call DEBUGPrint("   LayoutOutput")
+	nCtrlIdx	= RBNTabAddGroup("LayoutOutput", "Output", "TabLayout")
+
+	nCtrlIdx	= RBNGroupAddControl("PrintButton", "Udskriv", "PR", 1, "TabLayout", "LayoutOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Udskriv", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_PRINT_16, MI_IMG_APP_PRINT_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("PdfButton", "Opret", "PD", 1, "TabLayout", "LayoutOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_APP_PRINTTOPDF_16, MI_IMG_APP_PRINTTOPDF_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	nCtrlIdx	= RBNGroupAddControl("ExportImgButton", "Gem", "EX", 1, "TabLayout", "LayoutOutput")
+	Call RBNControlSetToolTipIdx(nCtrlIdx, "Gem", "Enabled ToolTip", "Disabled ToolTip")
+	Call RBNControlSetIconsIdx(nCtrlIdx, 3, MI_IMG_WIN_EXPORTIMAGE_16, MI_IMG_WIN_EXPORTIMAGE_32)
+	Call RBNControlSetCmdIDIdx(nCtrlIdx, 102)
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUBuildRibbonInterfaceMIPro")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUBuildRibbonInterface
+
+Dim	sRbnTabName, sRbnTabCaption, sRnGroupName, sRnGroupCaption, sSplitButtonName, sSplitButtonGroupName As String,
+	nCtrlIdx, nCtrl As Integer
+
+OnError GoTo ErrorOccured
+
+	'Adding a tab
+	sRbnTabName		= TAB_HOME
+	sRbnTabCaption		= "START"
+	nCtrlIdx	= RBNAddTab(sRbnTabName, sRbnTabCaption, "S")
+	If NOT nCtrlIdx > 0 Then
+		Exit Sub
+	End If
+
+	sRnGroupName		= TAB_GROUP_HOME_FILE
+	sRnGroupCaption	= "Filer"
+	nCtrlIdx = RBNTabAddGroup(sRnGroupName, sRnGroupCaption, sRbnTabName)
+	If NOT nCtrlIdx > 0 Then
+		Exit Sub
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("FileOpenWorkspaceButton", "Åbn arbejdsområde", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn arbejdsområde", "Luk aktuelt arbejdsområde og åbn et nyt arbejdsområde.", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_LARGE, MI_IMG_APP_OPENWORKSPACE_16, MI_IMG_APP_OPENWORKSPACE_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_ADD_WORKSPACE)
+	End If
+
+	If Ubound(marrFavoriteMaps) > 0 Then
+		sSplitButtonName	= "sbtnBaseMaps"
+		nCtrlIdx	= RBNGroupAddControl(sSplitButtonName, "Basemaps", "", ControlType_SplitButton, sRbnTabName, sRnGroupName)
+		If nCtrlIdx > 0 Then
+			'Set the button icon
+			Call RBNControlSetIconsIdx(nCtrlIdx, mnImageSize, "", marrFavoriteMaps(1).sImageFile)
+			'**Set the handler to match the handler of the first button
+			Call RBNControlSetCustomMBXHandlerIdx(nCtrlIdx, "MENUOpenFavoriteMap1")
+			'**Get the ID of the SplitButton - nneded in the handler
+			mnSplitButtonBaseMapCtrlID	= RBNControlGetControlIDIdx(nCtrlIdx)
+
+			sSplitButtonGroupName		= "sbtngrpBaseMaps"
+			nCtrlIdx	= RBNSplitButtonAddGroup(sSplitButtonGroupName, "", sRbnTabName, sRnGroupName, sSplitButtonName)
+
+			If nCtrlIdx > 0 Then
+				For nCtrl = 1 To Ubound(marrFavoriteMaps)
+					'Call DEBUGPrint(nCtrl & ": Button " & marrFavoriteMaps(nCtrl).sName & " to splitbutton called " & sSplitButtonName)
+					nCtrlIdx = RBNSplitButtonGroupAddControl(sSplitButtonName & nCtrl, marrFavoriteMaps(nCtrl).sName, ""
+										, ControlType_Button, sRbnTabName, sRnGroupName, sSplitButtonName, sSplitButtonGroupName)
+					If nCtrlIdx > 0 Then
+						'Create & Set the button tooltip
+						Call RBNControlSetToolTipIdx(nCtrlIdx, PRGIGetApplicationName(), "Open basemap '" & marrFavoriteMaps(nCtrl).sName & "'", "")
+						'Set the button icon
+						Call RBNControlSetIconsIdx(nCtrlIdx, mnImageSize, "", marrFavoriteMaps(nCtrl).sImageFile)
+						'Set Custom MapBasic Handle to the button
+						Call RBNControlSetCustomMBXHandlerIdx(nCtrlIdx, "MENUOpenFavoriteMap1")
+
+						If mnSplitButtonBaseMapFirstCtrlID = 0 Then
+							mnSplitButtonBaseMapFirstCtrlID = RBNControlGetControlIDIdx(nCtrlIdx)
+						End If
+					End If
+				Next
+			End If
+		End If
+
+		If mbShowSaveLayerSettingMenu Then
+			Alter Menu ID M_SHORTCUT_LC_LAYERS
+				Add
+					"Save layer settings for Favorite Maps"
+						HelpMsg "Save layer setting for Favorite Maps"
+						Calling MENUSaveLayerSettingsLC
+		End If
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("FileOpenTableButton", "Tabel", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Åbn tabel", "Åbn en tabel ind i det aktuelle arbejdsområde", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_SMALL, MI_IMG_MAP_OPENTABLE_16, MI_IMG_MAP_OPENTABLE_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_OPEN)
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("CloseTableButton", "Luk tabel", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk tabel", "Luk en eller flere tabeller", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_SMALL, MI_IMG_TAB_CLOSETABLE_16, MI_IMG_TAB_CLOSETABLE_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_CLOSE)
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("CloseAllButton", "Luk alle", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Luk alle", "Luk alle åbne tabeller og vinduer", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_SMALL, MI_IMG_APP_CLOSEALL_16, MI_IMG_APP_CLOSEALL_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_FILE_CLOSE)
+	End If
+
+	'-----------------------
+	'Adding a tab
+	sRbnTabName		= TAB_MAP
+	sRbnTabCaption		= "KORT"
+	nCtrlIdx	= RBNAddTab(sRbnTabName, sRbnTabCaption, "S")
+	If NOT nCtrlIdx > 0 Then
+		Exit Sub
+	End If
+
+	sRnGroupName		= TAB_GROUP_MAP_FILE
+	sRnGroupCaption	= "Indhold"
+	nCtrlIdx = RBNTabAddGroup(sRnGroupName, sRnGroupCaption, sRbnTabName)
+	If NOT nCtrlIdx > 0 Then
+		Exit Sub
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("NewMapButton", "Kort", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Opret nyt kortvindue", "Vælg en eller flere tabeller, der skal vises i et nyt kort", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_LARGE, MI_IMG_MAP_NEWMAP_16, MI_IMG_MAP_NEWMAP_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_WINDOW_MAP)
+	End If
+
+	nCtrlIdx	= RBNGroupAddButton("MapAddLayersButton", "Tilføj lag", "", sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'Create & Set the button tooltip
+		Call RBNControlSetToolTipIdx(nCtrlIdx, "Tilføj lag", "Tilføj et eller flere lag til kortvinduet", "")
+		'Set the button icon
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_SMALL, MI_IMG_MAP_ADDLAYER_16, MI_IMG_MAP_ADDLAYER_32)
+		'**Set the handler to match the handler of the first button
+		Call RBNControlSetCmdIDIdx(nCtrlIdx, M_LC_ADDLAYERS)
+	End If
+
+	nCtrlIdx = RBNGroupAddControl("MapSelectionToolsSplitButton", "Vælg", "", ControlType_SplitButton, sRbnTabName, sRnGroupName)
+	If nCtrlIdx > 0 Then
+		'*Setting the image sizes to large
+		Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_LARGE, MI_IMG_MAP_SELECT_16, MI_IMG_MAP_SELECT_32)
+
+		'**Adding a Group to the new SplitButton
+		nCtrlIdx	= RBNSplitButtonAddGroup("SelectionDownMenuGroup", "", sRbnTabName, sRnGroupName, "MapSelectionToolsSplitButton")
+		If nCtrlIdx > 0 Then
+			'**Adding a Control to the Group on the SplitButton
+			nCtrlIdx = RBNSplitButtonGroupAddControl("SelectButton", "Vælg", "V", ControlType_ToolButton, sRbnTabName, sRnGroupName, "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+			If nCtrlIdx > 0 Then
+				'Create & Set the button tooltip
+				Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Vælg et eller flere kort-/layoutobjekter eller listeposter", "")
+				'Set the button icon
+				Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_LARGE, MI_IMG_MAP_SELECT_16, MI_IMG_MAP_SELECT_32)
+				'Set Custom MapBasic Handle to the button
+				Call RBNControlSetCmdIDIdx(nCtrlIdx, M_TOOLS_SELECTOR)
+			End If
+
+			'**Adding a Control to the Group on the SplitButton
+			nCtrlIdx = RBNSplitButtonGroupAddControl("RadiusSelectButton", "Radiusvalg", "R", ControlType_ToolButton, sRbnTabName, sRnGroupName, "MapSelectionToolsSplitButton", "SelectionDownMenuGroup")
+			If nCtrlIdx > 0 Then
+				'Create & Set the button tooltip
+				Call RBNControlSetToolTipIdx(nCtrlIdx, "Vælg", "Vælg kortobjekter inden for en bestemt radius", "")
+				'Set the button icon
+				Call RBNControlSetIconsIdx(nCtrlIdx, CONTROL_SIZE_LARGE, MI_IMG_MAP_AREASELECT_16, MI_IMG_MAP_AREASELECT_32)
+				'Set Custom MapBasic Handle to the button
+				Call RBNControlSetCmdIDIdx(nCtrlIdx, M_TOOLS_SEARCH_RADIUS)
+			End If
+		End If
+	End If
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUBuildRibbonInterface")
+	Call ERRShow()
+
+End Sub
+
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUCreateContextMenus
+
+OnError GoTo ErrorOccured
+
+	Create Menu "DefaultShortcut" ID 16 Context As
+		"Fortryd"
+			HelpMsg "Annullerer den sidste ændring."
+			calling 201,
+		"(-",
+		"Klip"
+			HelpMsg "Udklipper tekst og objekter, som er markeret, til Udklipsholder."
+			calling 202,
+		"Kopier"
+			HelpMsg "Kopierer tekst og objekter, som er markeret, til Udklipsholder."
+			calling 203,
+		"Sæt ind"
+			HelpMsg "Kopierer indholdet i Udklipsholder til det aktive vindue."
+			calling 204
+
+	Create Menu "MapperShortcut" ID 17 Context As
+		"&Lagkontrol..."
+			HelpMsg "Vis dialogboksen Lagkontrol"
+			calling 822,
+		"(-",
+		"Fin&d udvalg"
+			HelpMsg "Marker element/række og find udvalget i det øverste kortvindue."
+			calling 312,
+		"Vis he&le det markerede lag"
+			HelpMsg "Viser hele udstrækningen af det nuværende markerede lag."
+			calling 819,
+		"&Marker alt i det markerede lag"
+			HelpMsg "Markerer alle rækker i det nuværende markerede lag."
+			calling 820,
+		"Gør det markerede lag redi&gerbart"
+			HelpMsg "Gør det muligt at redigere i det nuværende markerede lag."
+			calling 821,
+		"(-",
+		"!&Autorul slået fra^&Autorul slået til"
+			HelpMsg "Aktiverer eller deaktiverer automatisk rulning i det aktive kortvindue"
+			calling 815,
+		"(-",
+		"&Slet kosmetisk lag"
+			HelpMsg "Slet alle objekter fra det kosmetiske lag."
+			calling 810,
+		"(-",
+		"Ret &vindue..."
+			HelpMsg "Definer kortbredde, skala, størrelse og centrering."
+			calling 805,
+		"Klon vi&ndue"
+			HelpMsg "Vis en kloning af det aktive vindue."
+			calling 811,
+		"&Forrige vindue"
+			HelpMsg "Returner til det foregående vindue for et kort."
+			calling 806,
+		"Vis &hele laget..."
+			HelpMsg "Viser et enkelt eller alle kortlag."
+			calling 807,
+		"&Ret zoom til nærmeste tileserverniveau..."
+			HelpMsg "Ret zoom til nærmeste tileserverniveau."
+			calling 828,
+		"(-",
+		"Redigerer Objekter" as "Objekter",
+		"(-",
+		"&Vis information...\tF7/W%118"
+			HelpMsg "Henter information om det valgte objekt."
+			calling 207
+
+	Create Menu "BrowserShortcut" ID 18 Context As
+		"Sorter stigende"
+			HelpMsg "Sorter A-Å / lille til stor"
+			calling 2702,
+		"Sorter faldende"
+			HelpMsg "Sorter Å-A / stor til lille"
+			calling 2703,
+		"(-",
+		"Filter..."
+			HelpMsg "Vælg filterbetingelser for midlertidigt at skjule rækker ud fra celleværdier."
+			calling 2704,
+		"Ryd filter"
+			HelpMsg "Ryd alle filtreringsbetingelser for denne kolonne."
+			calling 2705
+
+	Create Menu "BrowserFilterShortcut" ID 47 As
+		"Sorter flere kolonner..."
+			HelpMsg "Sorterer browseren efter en eller flere kolonner"
+			calling 710,
+		"(-",
+		"Genbrug sortering"
+			HelpMsg "Genbrug sortering/filtre for at gendanne anvendt sortering eller filtrering"
+			calling 2709,
+		"Slå sortering fra"
+			HelpMsg "Slå sortering/filtrering fra eller til."
+			calling 2706,
+		"(-",
+		"&Ryd al sortering og filtrering"
+			HelpMsg "Rydder al sortering og filtrering, så alle rækker vises i den oprindelige rækkefølge, inden sortering og filtrering blev foretaget"
+			calling 2710,
+		"Ryd filter"
+			HelpMsg "Rydder alle filter, så alle rækker vises. En eventuel sorteringsrækkefølge bevares."
+			calling 2707,
+		"Ryd sortering"
+			HelpMsg "Rydder sorteringen, så rækker vises i den oprindelige rækkefølge. En eventuel filtrering bevares."
+			calling 2701,
+		"(-",
+		"Opret en &forspørgsel ud fra browserindhold..."
+			HelpMsg "Opret en forespørgsel ud fra browserens sorterings- og filtreringsbetingelser."
+			calling 2711
+
+	Create Menu "BrowserSelectShortcut" ID 48 As
+		"Vælg a&lt"
+			HelpMsg "Vælg alle rækker fra aktuelle browser."
+			calling 2708,
+		"&Annuller alle valg\tCtrl+W/W^W"
+			HelpMsg "Fjern alle objekt- eller rækkemarkeringer i et kort-/layoutvindue eller på en liste."
+			calling 304
+
+	Create Menu "LayoutShortcut" ID 19 Context As
+		"Ret &zoom-niveau..."
+			HelpMsg "Definer zoom-niveau til et aktivt layoutvindue."
+			calling 902,
+		"&Vis faktisk størrelse"
+			HelpMsg "Vis layoutobjekter i deres udskriftsstørrelse."
+			calling 903,
+		"Vis &hele layoutet"
+			HelpMsg "Vis alle sider i layoutvinduet."
+			calling 904,
+		"&Forrige vindue"
+			HelpMsg "Reurner til det foregående vindue for et layout."
+			calling 905,
+		"(-",
+		"Sæt f&orrest"
+			HelpMsg "Placer de valgte layoutobjekter foran de andre objekter."
+			calling 906,
+		"Sæt &bagest"
+			HelpMsg "Flyt de valgte layoutobjekter om bag de andre objekter"
+			calling 907,
+		"(-",
+		"(Ob&jekter på linie..."
+			HelpMsg "Placer layoutobjekter på en linie eller ved layoutvinduets ramme."
+			calling 908,
+		"(&Venstrejuster"
+			HelpMsg "Venstrejuster layoutobjekter i forhold til hinanden."
+			calling 911,
+		"(&Højrejuster"
+			HelpMsg "Højrejuster layoutobjekter i forhold til hinanden."
+			calling 912,
+		"(Juster øvers&t"
+			HelpMsg "Juster layoutobjekter øverst i forhold til hinanden."
+			calling 913,
+		"(J&uster nederst"
+			HelpMsg "Juster layoutobjekter nederst i forhold til hinanden."
+			calling 914,
+		"&Skygger..."
+			HelpMsg "Anbring en skygge bag layoutvinduets ramme eller bag valgte objekter."
+			calling 909,
+		"(-",
+		"!&Autorul slået fra^&Autorul slået til"
+			HelpMsg "Aktiverer eller deaktiverer automatisk rulning i det aktive layoutvindue"
+			calling 910
+
+	Create Menu "GrapherShortcut" ID 20 Context As
+		"Graf&type..."
+			HelpMsg "Vælg en graftype og definer dens indstillinger."
+			calling 1001,
+		"&Navneakse..."
+			HelpMsg "Indstil grafens navneakse."
+			calling 1002,
+		"&Værdiakse..."
+			HelpMsg "Indstil grafens værdiakse."
+			calling 1003,
+		"&Serier..."
+			HelpMsg "Bestem grafens udseende."
+			calling 1004
+
+	Create Menu "CmdShortcut" ID 21 Context As
+		"Fortryd"
+			HelpMsg "Annullerer den sidste ændring."
+			calling 201,
+		"(-",
+		"Klip"
+			HelpMsg "Udklipper tekst og objekter, som er markeret, til Udklipsholder."
+			calling 202,
+		"Kopier"
+			HelpMsg "Kopierer tekst og objekter, som er markeret, til Udklipsholder."
+			calling 203,
+		"Sæt ind"
+			HelpMsg "Kopierer indholdet i Udklipsholder til det aktive vindue."
+			calling 204
+
+	Create Menu "RedistrictShortcut" ID 22 Context As
+		"(T&ildel valgte objekter"
+			HelpMsg "Permanent tildeling af valgte objekter til et måldistrikt."
+			calling 705,
+		"(&Vælg måldistrikt fra kort"
+			HelpMsg "Angiv det valgte objekts område som måldistrikt."
+			calling 706,
+		"(-",
+		"&Tekststil...\tF8/W%119"
+			HelpMsg "Definer tekstfarve, skrifttype og størrelse."
+			calling 504,
+		"(-",
+		"(&Tilføj distrikt"
+			HelpMsg "Tilføj et nyt distrikt på distriktslisten."
+			calling 707,
+		"(&Slet måldistrikt"
+			HelpMsg "Slet det aktuelle måldistrikt fra distriktslisten."
+			calling 708
+
+	Create Menu "LegendShortcut" ID 23 Context As
+		"&Tilføj rammer..."
+			HelpMsg "Tilføjer nye rammer til det aktive signaturforklaringsvindue."
+			calling 1903,
+		"&Gentegn..."
+			HelpMsg "Gentegner indholdet i det aktive signaturforklaringsvindue."
+			calling 1902,
+		"(-",
+		"&Slet"
+			HelpMsg "Sletter den markerede ramme."
+			calling 1904,
+		"(-",
+		"&Egenskaber for vindue..."
+			HelpMsg "Indstiller egenskaberne for det aktive signaturforklaringsvindue."
+			calling 1901
+
+	Create Menu "GrapherShortcut" ID 24 Context As
+		"&Formatering..."
+			HelpMsg "Indstiller egenskaberne for det markerede grafobjekt."
+			calling 2007,
+		"(-",
+		"&Generelle indstillinger..."
+			HelpMsg "Indstil egenskaber for grafen."
+			calling 2002,
+		"&Serieindstillinger..."
+			HelpMsg "Indstiller egenskaber for de markerede serier."
+			calling 2003,
+		"Git&re og skalaer..."
+			HelpMsg "Indstiller egenskaberne for grafgitre og skalaer."
+			calling 2004,
+		"&Titler..."
+			HelpMsg "Indstiller titler og etiketter for grafen."
+			calling 2005,
+		"&3D-visningsvinkel..."
+			HelpMsg "Indstiller visningsvinklen for en 3D-graf."
+			calling 2006,
+		"(-",
+		"Gem som sk&abelon..."
+			HelpMsg "Gem den aktuelle graf som en skabelon.."
+			calling 2008
+
+	Create Menu "&3DMapShortcut" ID 25 Context As
+		"Gendan st&ruktur"
+			HelpMsg "Gendan strukturen fra de oprindelige lag."
+			calling 2103,
+		"(-",
+		"Klon vi&ndue"
+			HelpMsg "Vis en kopi af aktuelt 3D-vindue."
+			calling 2105,
+		"&Forrige vindue"
+			HelpMsg "Returner til sidste visning af 3D-vindue."
+			calling 2106,
+		"Vis h&ele laget"
+			HelpMsg "Nulstil synsvinkel for at centrere visningen af hele laget."
+			calling 2101,
+		"Syns&vinkel..."
+			HelpMsg "Brug dialogboksen til at indstille synsvinklen."
+			calling 2107,
+		"(-",
+		"(!&Trådnet"
+			HelpMsg "Skift mellem trådnet eller udfyldt visning."
+			calling 2104,
+		"(-",
+		"&Egenskaber..."
+			HelpMsg "Indstil egenskaber for 3D-vinduer."
+			calling 2102
+
+	Create Menu "MessageWinShortcut" ID 26 Context As
+		"&Kopier"
+			HelpMsg "Kopier den markerede tekst eller al tekst"
+			calling 203
+
+	Create Menu "StatisticsWinShortcut" ID 27 Context As
+		"&Kopier  Ctrl+C"
+			HelpMsg "Kopier alle data til Udklipsholder"
+			calling 2301
+
+	Create Menu "AdornmentShortcut" ID 32 Context As
+		"&Egenskaber..."
+			HelpMsg "Viser egenskaberne for udsmykningen."
+			calling 2401,
+		"(-",
+		"&Fjern"
+			HelpMsg "Fjern den aktuelle udsmykning fra kortvinduet."
+			calling 2402
+
+	Create Menu "LcLayersShortcut" ID 33 Context As
+		"Vis hele laget"
+			HelpMsg "Vis hele laget"
+			calling 2501,
+		"(-",
+		"Lagegenskaber..."
+			HelpMsg "Vis dialogboksen Lagegenskaber"
+			calling 2502,
+		"Labelskrifttype..."
+			HelpMsg "Indstil egenskaber for skrifttyper til labels"
+			calling 2503,
+		"Fjern brugeroprettede labels fra de valgte lag"
+			HelpMsg "Kasser alle brugeroprettede labels for de valgte lag"
+			calling 2521,
+		"Gennemse tabel"
+			HelpMsg "Vis og ret data i tabelformat."
+			calling 2517,
+		"Vælg alt i laget"
+			HelpMsg "Vælg alle rækker i tabellen, som vises i dette lag."
+			calling 2523,
+		"(-",
+		"Gør andre lag ikke-valgbare"
+			HelpMsg "Gør andre lag ikke-valgbare"
+			calling 2504,
+		"(-",
+		"Indsæt lagtilpasning"
+			HelpMsg "Indsæt lagtilpasning"
+			calling 2511,
+		"Indsæt labeltilpasning"
+			HelpMsg "Indsæt labeltilpasning"
+			calling 2512,
+		"(-",
+		"Ret zoom til nærmeste tileserverniveau"
+			HelpMsg "Ret zoom til nærmeste tileserverniveau."
+			calling 2520,
+		"(-",
+		"Vis\/rediger metadata..."
+			HelpMsg "Vis/rediger metadatapost for tabellen."
+			calling 2518,
+		"Tilføj til bibliotek..."
+			HelpMsg "Tilføj en tabel til tabelstyringens bibliotek."
+			calling 2519
+
+	Create Menu "LcMapsShortcut" ID 34 Context As
+		"Omdøb"
+			HelpMsg "Omdøb kortet"
+			calling 2505,
+		"Indstil kortet..."
+			HelpMsg "Vis dialogboksen Indstil kortet."
+			calling 2506,
+		"&Juster labelprioriteter..."
+			HelpMsg "Ret prioriteten for labels i forskellige lag"
+			calling 2522,
+		"Tilføj gruppe"
+			HelpMsg "Tilføj et nyt, tomt gruppelag"
+			calling 2507
+
+	Create Menu "LcGroupsShortcut" ID 35 Context As
+		"Omdøb"
+			HelpMsg "Omdøb gruppen"
+			calling 2508,
+		"Tilføj lag..."
+			HelpMsg "Tilføj lag til en gruppe"
+			calling 2510,
+		"Tilføj gruppe"
+			HelpMsg "Tilføj et nyt, tomt gruppelag"
+			calling 2507,
+		"Fjern gruppering"
+			HelpMsg "Omdøb gruppemappen, uden at fjerne lagene i gruppen."
+			calling 2509
+
+	Create Menu "TableAdornmentShortcut" ID 36 Context As
+		"&Fjern"
+			HelpMsg "Fjern den aktuelle udsmykning fra kortvinduet."
+			calling 2402
+
+	Create Menu "TableListWindowShortcut" ID 37 Context As
+		"Marker alt"
+			HelpMsg "Marker alt på et kort- eller layoutvindue eller på en liste."
+			calling 2601,
+		"Gennemse"
+			HelpMsg "Vis og ret data i tabelformat."
+			calling 2602,
+		"Åbn i et nyt kortvindue"
+			HelpMsg "Vis en eller flere tabeller som et kort."
+			calling 2603,
+		"Eksport..."
+			HelpMsg "Eksporter en tabel til et andet format."
+			calling 2604,
+		"(-",
+		"Opdater"
+			HelpMsg "Opdater tabel åbnet via universelle data, indhold fra en DBMS-tabel eller fra en WFS-tabel."
+			calling 2605,
+		"Tabelstruktur..."
+			HelpMsg "Ret tabelstrukturen."
+			calling 2606,
+		"Opret punkter..."
+			HelpMsg "Opret punktobjekter til en database med X- og Y-koordinater."
+			calling 2607,
+		"Opdater kolonne..."
+			HelpMsg "Opret midlertidige kolonner eller ret eksisterende kolonner."
+			calling 2608,
+		"(-",
+		"Vis\/rediger metadata..."
+			HelpMsg "Vis/rediger metadatapost for tabellen."
+			calling 2610,
+		"Tilføj til bibliotek..."
+			HelpMsg "Tilføj en tabel til tabelstyringens bibliotek."
+			calling 2611,
+		"(-",
+		"Luk"
+			HelpMsg "Luk en eller flere tabeller."
+			calling 2609
+
+	Create Menu "OverridesShortcut" ID 38 Context As
+		"Egenskaber for lagtilpasning..."
+			HelpMsg "Vis egenskaber for lagtilpasning"
+			calling 2513,
+		"Egenskaber for labeltilpasning..."
+			HelpMsg "Vis egenskaber for labeltilpasning"
+			calling 2514,
+		"Opdel"
+			HelpMsg "Opdel"
+			calling 2515,
+		"Fjern"
+			HelpMsg "Fjern"
+			calling 2516
+
+	Create Menu "LegendDesignerShortcut" ID 50 Context As
+		"&Tilføj rammer..."
+			HelpMsg "Tilføjer nye rammer til det aktive signaturforklaringsvindue."
+			calling 2806,
+		"&Tilføj tekstramme..."
+			HelpMsg "Tilføj en ny uafhængig tekstramme til det aktive signaturforklaringsvindue."
+			calling 2807,
+		"&Gentegn..."
+			HelpMsg "Gentegner indholdet i det aktive signaturforklaringsvindue."
+			calling 2805,
+		"(-",
+		"!Sluk &hjælpelinjer^Tænd &hjælpelinjer"
+			HelpMsg "Tænd eller sluk for hjælpelinjer i det aktive signaturforklaringsvindue."
+			calling 2801,
+		"Fjern alle h&jælpelinjer"
+			HelpMsg "Fjerner alle hjælpelinjer fra det aktive signaturforklaringsvindue."
+			calling 2802,
+		"(-",
+		"&Slet de markerede rammer"
+			HelpMsg "Fjerner de markerede rammer fra det aktive signaturforklaringsvindue."
+			calling 2803,
+		"(-",
+		"&Egenskaber..."
+			HelpMsg "Indstiller egenskaberne for det aktive signaturforklaringsvindue."
+			calling 2804
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUCreateContextMenus")
+	Call ERRShow()
+
+End Sub
+
+
+
+'****************************************
+'**   Created by Peter Horsbøll Møller, Pitney Bowes Software
+'**   Ending MapBasic application
+'****************************************
+Sub EndProgram
+
+OnError GoTo ErrorOccured
+
+	End Program
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "EndProgram")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub EndHandler
+
+OnError GoTo ErrorOccured
+
+	Call RBNEndHandler
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "EndHandler")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUSaveLayerSettingsLC
+
+Dim	i, nMID, nLayers, nLayer, nMap, nMapFound As Integer,
+	sTabFile As String,
+	tlbs As T_LABEL_SETTINGS,
+	tls As T_LAYER_SETTINGS
+
+OnError GoTo ErrorOccured
+
+	For i = 1 To LayerControlInfo(LC_INFO_SEL_COUNT)
+		nMID		= LayerControlSelectionInfo (i, LC_SEL_INFO_MAPWIN_ID)
+		nLayer	= LayerControlSelectionInfo(i, LC_SEL_INFO_LAYER_ID)
+
+		If NOT LayerInfo(nMID, nLayer, LAYER_INFO_TYPE) IN (LAYER_INFO_TYPE_COSMETIC, LAYER_INFO_TYPE_THEMATIC) Then
+			sTabFile = TableInfo(LayerInfo(nMID, nLayer, LAYER_INFO_NAME), TAB_INFO_TABFILE)
+
+			For nMap = 1 To Ubound(marrFavoriteMaps)
+				If marrFavoriteMaps(nMap).sTabFile = sTabFile Then
+
+					Call tlsGetInfo(nMID, nLayer, tls)
+					marrFavoriteMaps(nMap).sLyrSettings = tlsToString(tls)
+					Call CONFIGWriteKey(FILE_INI, "FAVORITE MAPS", "LAYERSETTING" & nMap, marrFavoriteMaps(nMap).sLyrSettings)
+
+					Call tlbsGetInfo(nMID, nLayer, tlbs)
+					marrFavoriteMaps(nMap).sLblSettings = tlbsToString(tlbs)
+					Call CONFIGWriteKey(FILE_INI, "FAVORITE MAPS", "LABELSETTING" & nMap, marrFavoriteMaps(nMap).sLblSettings)
+
+				End If
+			Next
+		End If
+	Next
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUSaveLayerSettingsLC")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUOpenFavoriteMap(ByVal nItem As Integer)
+
+Dim	nMID, nLayer As Integer,
+	tli As T_LAYER_INFO
+
+OnError GoTo ErrorOccured
+
+	Call DEBUGPrint("Trying to open item " & nItem)
+
+	Call RBNNotificationShow(PRGIGetApplicationName(), "Opening Base Map '" & marrFavoriteMaps(nItem).sName & "'", Notify_Info, 2000)
+
+	Open Table marrFavoriteMaps(nItem).sTabFile
+
+	nMID = MAPFrontMostWindow()
+	If nMID = 0 Then
+		Map From PathToTableName$(marrFavoriteMaps(nItem).sTabFile)
+		nMID = MAPFrontMostWindow()
+		nLayer = 1
+	Else
+		Add Map
+			Window nMID
+			Auto
+			Layer PathToTableName$(marrFavoriteMaps(nItem).sTabFile)
+		nLayer = LAYERGetLayerNumber(nMID, PathToTableName$(marrFavoriteMaps(nItem).sTabFile))
+	End If
+
+	If nLayer > 0 Then
+		tli.nMID	= nMID
+		tli.sName	= PathToTableName$(marrFavoriteMaps(nItem).sTabFile)
+
+		If marrFavoriteMaps(nItem).sLyrSettings <> "" Then
+			If tlsFromString(tli.tlsLyrSettings, marrFavoriteMaps(nItem).sLyrSettings) Then
+
+			End If
+		End If
+		If marrFavoriteMaps(nItem).sLblSettings <> "" Then
+			If tlbsFromString(tli.tlbsLblSettings, marrFavoriteMaps(nItem).sLblSettings) Then
+
+			End If
+		End If
+
+		If marrFavoriteMaps(nItem).sLyrSettings <> "" OR marrFavoriteMaps(nItem).sLblSettings <> "" Then
+			If tliApplyInfo(nMID, nLayer, tli) Then
+				Call DEBUGPrint("Layer and/or label settings were applied to the layer!")
+			End If
+		End If
+	End If
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUOpenFavoriteMap: " & nItem)
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Software
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUOpenFavoriteMap1
+
+Dim	nCtrl, nItem As Integer
+
+OnError GoTo ErrorOccured
+
+	nItem	= CommandInfo(CMD_INFO_TOOLBTN)
+	nCtrl	= 1
+
+	Call DEBUGPrint("The user clicked on item " & nItem & " The first control for this is " & mnSplitButtonBaseMapFirstCtrlID)
+	If nItem = mnSplitButtonBaseMapCtrlID Then
+		'**User clicked on the initial control on the SplitButton
+		nItem	= 1
+	Else
+		nItem	= nItem - mnSplitButtonBaseMapFirstCtrlID + 1
+	End If
+
+	Call MENUOpenFavoriteMap(nItem)
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUOpenFavoriteMap1")
+	Call ERRShow()
+
+End Sub
+
+'**********************************************************************************************''
+'Created by Peter Horsbøll Møller, Pitney Bowes Business Insight
+'Parameters:
+'
+'**********************************************************************************************''
+Sub MENUReadConfigFile
+
+Dim	i, nFile, nCount, nNoneFound As Integer,
+	sName, sImageFile, sTabFile, sLyrSettings, sLblSettings As String
+
+OnError GoTo ErrorOccured
+
+'[FAVORITE MAPS]
+'NAME1=Basemap Colours
+'TABFILE1=BaseMaps\BaseMap.tab
+'IMAGEFILE1=Images\BaseMap_32x32.png
+'LAYERSETTING1=
+'LABELSETTING1=
+
+	Call DEBUGPrint("MENUReadConfigFile:" & FILE_INI)
+	Do While TRUE
+		nFile		= nFile + 1
+		sName		= CONFIGReadKey(FILE_INI, "FAVORITE MAPS", "NAME" & nFile)
+		sImageFile	= CONFIGReadKey(FILE_INI, "FAVORITE MAPS", "IMAGEFILE" & nFile)
+		sTabFile		= CONFIGReadKey(FILE_INI, "FAVORITE MAPS", "TABFILE" & nFile)
+		sLyrSettings	= CONFIGReadKey(FILE_INI, "FAVORITE MAPS", "LAYERSETTING" & nFile)
+		sLblSettings	= CONFIGReadKey(FILE_INI, "FAVORITE MAPS", "LABELSETTING" & nFile)
+
+		Call DEBUGPrint(nCount & ": '" & sName & "', '" & sImageFile & "', '" & sTabFile & "'")
+		If sName <> "" AND sImageFile <> "" AND sTabFile <> "" Then
+			nCount = nCount + 1
+			Redim marrFavoriteMaps(nCount)
+
+			marrFavoriteMaps(nCount).sName		= sName
+			marrFavoriteMaps(nCount).sImageFile	= FILEGetAbsolutePath(ApplicationDirectory$(), sImageFile)
+			marrFavoriteMaps(nCount).sTabFile		= FILEGetAbsolutePath(ApplicationDirectory$(), sTabFile)
+			marrFavoriteMaps(nCount).sLyrSettings	= sLyrSettings
+			marrFavoriteMaps(nCount).sLblSettings	= sLblSettings
+
+			Call DEBUGPrint(nCount & ": '" & marrFavoriteMaps(nCount).sImageFile & "'")
+
+			nNoneFound = 0
+		Else
+			Call DEBUGPrint(nFile & ": Not Found!")
+			nNoneFound = nNoneFound + 1
+
+			If nNoneFound > 3 Then
+				Exit Do
+			End If
+		End If
+	Loop
+
+	If CONFIGReadKey(FILE_INI, "SETTINGS", "USELARGEICONS") = "1" Then
+		mnImageSize = CONTROL_SIZE_LARGE
+	Else
+		mnImageSize = CONTROL_SIZE_SMALL
+	End If
+
+	mbShowSaveLayerSettingMenu	= (CONFIGReadKey(FILE_INI, "SETTINGS", "SHOWSAVELAYERSETTINGMENU") = "1")
+
+	Exit Sub
+'-------------------------
+ErrorOccured:
+	Call ERRCreate(Err(), Error$(), "MENUReadConfigFile")
+	Call ERRShow()
+
+End Sub

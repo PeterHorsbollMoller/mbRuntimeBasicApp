@@ -1,0 +1,13 @@
+!table
+!version 750
+!charset WindowsLatin1
+
+Definition Table
+  File "BaseMap.xml"
+  Type "WMS"
+  CoordSys Earth Projection 8, 115, "m", 9, 0, 0.9996, 500000, 0
+begin_metadata
+"\IsReadOnly" = "FALSE"
+"\MapInfo" = ""
+"\MapInfo\TableID" = "962a419b-4dd3-4baf-a590-267d5af22b4c"
+end_metadata

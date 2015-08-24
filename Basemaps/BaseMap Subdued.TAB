@@ -1,0 +1,13 @@
+!table
+!version 750
+!charset WindowsLatin1
+
+Definition Table
+  File "BaseMap Subdued.xml"
+  Type "WMS"
+  CoordSys Earth Projection 8, 115, "m", 9, 0, 0.9996, 500000, 0
+begin_metadata
+"\IsReadOnly" = "FALSE"
+"\MapInfo" = ""
+"\MapInfo\TableID" = "f4ce25cc-e462-46dc-8e2e-f55d1c6edb78"
+end_metadata
